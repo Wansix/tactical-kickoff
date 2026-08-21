@@ -50,7 +50,7 @@ describe('MatchSimulation', () => {
   it('composition swaps roles while preserving two robots per team', () => {
     const match = new MatchSimulation(1); match.swapComposition('blue');
     expect(match.state.robots.filter(r => r.team === 'blue')).toHaveLength(2);
-    expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.role)).toEqual(['anchor','striker']);
+    expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.role)).toEqual(['bulwark','striker']);
     expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.shape)).toEqual(['square','circle']);
   });
 
@@ -89,9 +89,9 @@ describe('MatchSimulation', () => {
     const match = new MatchSimulation(42);
     match.start();
     for(let i=0;i<10*60;i++) match.tick(1/60);
-    const before = match.state.robots.filter(r=>r.role==='anchor').map(r=>({x:r.x,y:r.y}));
+    const before = match.state.robots.filter(r=>r.role==='bulwark').map(r=>({x:r.x,y:r.y}));
     for(let i=0;i<20*60;i++) match.tick(1/60);
-    const after = match.state.robots.filter(r=>r.role==='anchor');
+    const after = match.state.robots.filter(r=>r.role==='bulwark');
     expect(after.some((r,i)=>Math.hypot(r.x-before[i].x,r.y-before[i].y)>10)).toBe(true);
   });
 

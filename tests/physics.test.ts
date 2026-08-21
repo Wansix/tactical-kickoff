@@ -15,7 +15,7 @@ describe('physics-first simulation contract', () => {
     for(let i=0;i<600;i++) match.tick(1/60);
     const contacts=match.getEvents().filter(event=>event.type==='robot-ball-collision');
     expect(contacts.length).toBeGreaterThan(0);
-    expect(Math.hypot(match.state.ball.vx,match.state.ball.vy)).toBeGreaterThan(0);
+    expect(contacts.some(event=>(event.impulse??0)>0&&event.vxAfter!==event.vxBefore||event.vyAfter!==event.vyBefore)).toBe(true);
   });
 
   it('resets a goal stationary inside the kickoff state', () => {
@@ -30,7 +30,7 @@ describe('physics-first simulation contract', () => {
     expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
     expect(match.getEvents().some(event=>event.type==='goal')).toBe(true);
     match.tick(1);
-    expect(match.state.ball).toMatchObject({x:270,y:480,vx:0,vy:0});
+    expect(match.state.ball).toMatchObject({x:270,y:match.field.height/2,vx:0,vy:0});
   });
 
   it('does not score outside the goal mouth', () => {
@@ -51,7 +51,7 @@ describe('physics-first simulation contract', () => {
     expect(match.state.status).toBe('running');
     expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
     match.tick(1);
-    expect(match.state.ball).toMatchObject({x:270,y:480,vx:0,vy:0});
+    expect(match.state.ball).toMatchObject({x:270,y:match.field.height/2,vx:0,vy:0});
     expect(match.state.status).toBe('finished');
   });
 
@@ -62,8 +62,18 @@ describe('physics-first simulation contract', () => {
     match.setPaused(true);
     expect(match.state.status).toBe('running');
     match.tick(1);
-    expect(match.state.ball).toMatchObject({x:270,y:480,vx:0,vy:0});
+    expect(match.state.ball).toMatchObject({x:270,y:match.field.height/2,vx:0,vy:0});
     expect(match.state.goalResetTimer).toBe(0);
+  });
+
+  it('runs every archetype through the selectable 2v2 roster', () => {
+    const match=new MatchSimulation(108,{blue:['scout','cannon'],orange:['dribbler','sweeper']});
+    expect(match.state.robots.map(robot=>robot.archetype)).toEqual(['scout','cannon','dribbler','sweeper']);
+    expect(match.state.robots.map(robot=>robot.shape)).toEqual(['diamond','hex','circle','square']);
+    match.start();
+    for(let i=0;i<120;i++)match.tick(1/60);
+    expect(match.state.robots.every(robot=>Number.isFinite(robot.x)&&Number.isFinite(robot.y))).toBe(true);
+    expect(match.state.robots.some(robot=>robot.action!=='RESET')).toBe(true);
   });
 
   it('produces identical telemetry for identical seeds and fixed ticks', () => {

@@ -1,6 +1,6 @@
 # Robot Soccer Physics / Gameplay Spec v0.1
 
-> 프로토타입 기준: 540×960 field, fixed 1/60 s simulation, top-down 2D. 길이 단위는 px, 시간은 s, 속도는 px/s, 질량은 임의 mass unit이다.
+> 프로토타입 기준: 540×860 field, fixed 1/60 s simulation, top-down 2D. 길이 단위는 px, 시간은 s, 속도는 px/s, 질량은 임의 mass unit이다.
 
 ## 1. 목표와 기본 원칙
 

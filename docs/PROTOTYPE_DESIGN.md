@@ -45,7 +45,7 @@
 | 인원 | **2v2** |
 | 이유 | 현재 세로 필드에서 행동과 충돌을 읽기 쉽고 중앙 gridlock이 적음 |
 | 후속 실험 | 3v3은 물리 샌드박스가 안정된 뒤 Phase 2 비교 모드로 추가 |
-| 필드 | 세로 540×960 simulation field |
+| 필드 | 세로 540×860 simulation field |
 | 경기 시간 | 본 경기 90초 |
 | 연장 | 0-0 또는 동점이면 20초 골든골 |
 | 그 이후 | 무승부 |
@@ -330,7 +330,7 @@ Gemini 2.5 Flash의 독립 의견:
 ## 16. 첫 버전 정확한 스펙
 
 ```text
-field: 540×960 portrait
+field: 540×860 portrait
 teams: 2v2
 match: 90s + 20s golden goal if tied
 player input: pre-match roster/deployment only

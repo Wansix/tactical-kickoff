@@ -9,15 +9,15 @@ export class GameScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
   private speed = 1;
-  private field = { x: 20, y: 90, w: 540, h: 960 };
+  private field = { x: 20, y: 110, w: 540, h: 860 };
   private onReady: ((scene: GameScene) => void) | undefined;
   private onFinish: (() => void) | undefined;
   constructor(onReady?: (scene: GameScene) => void, onFinish?: () => void) { super('match'); this.onReady = onReady; this.onFinish = onFinish; }
   create(): void {
     this.cameras.main.setBackgroundColor('#08111d');
-    const g=this.add.graphics(); g.fillStyle(0x102b37);g.fillRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x3c7180,1);g.strokeRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x5b98a1,.55);g.strokeRect(this.field.x,this.field.y+this.field.h/2-1,this.field.w,2);g.strokeCircle(this.field.x+this.field.w/2,this.field.y+this.field.h/2,78);g.beginPath();g.moveTo(this.field.x+190,this.field.y+80);g.lineTo(this.field.x+190,this.field.y);g.lineTo(this.field.x+350,this.field.y);g.lineTo(this.field.x+350,this.field.y+80);g.strokePath();g.beginPath();g.moveTo(this.field.x+190,this.field.y+this.field.h-80);g.lineTo(this.field.x+190,this.field.y+this.field.h);g.lineTo(this.field.x+350,this.field.y+this.field.h);g.lineTo(this.field.x+350,this.field.y+this.field.h-80);g.strokePath();
-    this.add.rectangle(this.field.x+270,this.field.y-9,160,10,0x53d6df); this.add.rectangle(this.field.x+270,this.field.y+this.field.h+9,160,10,0xff9f43);
-    this.ball=this.add.circle(this.field.x+270,this.field.y+480,10,0xf6f3dc).setStrokeStyle(3,0xffd16b);
+    const g=this.add.graphics(); g.fillStyle(0x102b37);g.fillRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x3c7180,1);g.strokeRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x5b98a1,.55);g.strokeRect(this.field.x,this.field.y+this.field.h/2-1,this.field.w,2);g.strokeCircle(this.field.x+this.field.w/2,this.field.y+this.field.h/2,78);g.beginPath();g.moveTo(this.field.x+190,this.field.y);g.lineTo(this.field.x+190,this.field.y-80);g.lineTo(this.field.x+350,this.field.y-80);g.lineTo(this.field.x+350,this.field.y);g.strokePath();g.beginPath();g.moveTo(this.field.x+190,this.field.y+this.field.h);g.lineTo(this.field.x+190,this.field.y+this.field.h+80);g.lineTo(this.field.x+350,this.field.y+this.field.h+80);g.lineTo(this.field.x+350,this.field.y+this.field.h);g.strokePath();
+    this.add.rectangle(this.field.x+270,this.field.y-80,160,10,0x53d6df); this.add.rectangle(this.field.x+270,this.field.y+this.field.h+80,160,10,0xff9f43);
+    this.ball=this.add.circle(this.field.x+270,this.field.y+this.field.h/2,10,0xf6f3dc).setStrokeStyle(3,0xffd16b);
     this.scoreText=this.add.text(20,24,'BLUE  0   —   0  ORANGE',{fontFamily:'monospace',fontSize:'25px',color:'#e6f7f5',fontStyle:'bold'}); this.timeText=this.add.text(420,30,'01:30',{fontFamily:'monospace',fontSize:'22px',color:'#9ad4d3'}); this.statusText=this.add.text(20,62,'READY // press START TO DEPLOY',{fontFamily:'monospace',fontSize:'12px',color:'#72a9af'});
     for(const r of this.sim.state.robots) this.createRobot(r);
     this.onReady?.(this);
@@ -39,9 +39,11 @@ export class GameScene extends Phaser.Scene {
       : this.add.polygon(0,0,[0,-18,15,-9,15,9,0,18,-15,9,-15,-9],color);
     body.setStrokeStyle(3,0xeaf7f4);
     const labelY=r.team==='blue'?27:-42;
-    const label=this.add.text(-38,labelY,`${r.role.toUpperCase()}\n${r.action}`,{fontFamily:'monospace',fontSize:'8px',color:'#d8f0ec',align:'center',fixedWidth:76});
+    const label=this.add.text(-38,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'8px',color:'#d8f0ec',align:'center',fixedWidth:76});
     const c=this.add.container(this.field.x+r.x,this.field.y+r.y,[ring,body,label]);
     this.robotGraphics.set(r.id,c);
   }
-  private render():void { const s=this.sim.state;this.scoreText.setText(`BLUE  ${s.score.blue}   —   ${s.score.orange}  ORANGE`);const remain=Math.ceil(90-s.elapsed);this.timeText.setText(`${Math.floor(remain/60).toString().padStart(2,'0')}:${(remain%60).toString().padStart(2,'0')}`);const phase=s.goalResetTimer>0?`GOAL // RESET ${s.goalResetTimer.toFixed(1)}s`:`${s.status.toUpperCase()}  //  ${this.speed.toFixed(1)}x  //  BLUE ↑  ORANGE ↓`;this.statusText.setText(phase);this.ball.setPosition(this.field.x+s.ball.x,this.field.y+s.ball.y);for(const r of s.robots){const c=this.robotGraphics.get(r.id);if(c){c.setPosition(this.field.x+r.x,this.field.y+r.y);const label=c.list[2] as Phaser.GameObjects.Text;label.setText(`${r.role.toUpperCase()}\n${r.action}`);}}}
+  private roleLabel(r:Robot):string { return r.archetype==='bulwark'?'앵커':r.archetype==='striker'?'스트라이커':r.archetype==='scout'?'정찰봇':r.archetype==='dribbler'?'운반봇':r.archetype==='cannon'?'포격봇':'청소봇'; }
+  private actionLabel(action:Robot['action']):string { return ({PRESS:'압박',COVER:'커버',CARRY:'운반',KICK:'킥',SHOOT:'강슛',RESET:'복귀'} as Record<Robot['action'],string>)[action]; }
+  private render():void { const s=this.sim.state;this.scoreText.setText(`파랑  ${s.score.blue}   —   ${s.score.orange}  주황`);const remain=Math.ceil(90-s.elapsed);this.timeText.setText(`${Math.floor(remain/60).toString().padStart(2,'0')}:${(remain%60).toString().padStart(2,'0')}`);const phase=s.goalResetTimer>0?`골인 // 재시작 ${s.goalResetTimer.toFixed(1)}초`:`${s.status==='ready'?'준비':s.status==='running'?'경기 중':s.status==='paused'?'일시정지':'경기 종료'}  //  속도 ${this.speed.toFixed(1)}배  //  파랑 ↑  주황 ↓`;this.statusText.setText(phase);this.ball.setPosition(this.field.x+s.ball.x,this.field.y+s.ball.y);for(const r of s.robots){const c=this.robotGraphics.get(r.id);if(c){c.setPosition(this.field.x+r.x,this.field.y+r.y);const label=c.list[2] as Phaser.GameObjects.Text;label.setText(`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`);}}}
 }

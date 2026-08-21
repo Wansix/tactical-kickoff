@@ -1,5 +1,5 @@
 export type Team = 'blue' | 'orange';
-export type Role = 'striker' | 'anchor';
+export type Role = RobotArchetype;
 export type RobotShape = 'circle' | 'square' | 'diamond' | 'hex';
 export type RobotArchetype = 'striker' | 'bulwark' | 'scout' | 'dribbler' | 'cannon' | 'sweeper';
 export type Action = 'PRESS' | 'COVER' | 'CARRY' | 'KICK' | 'SHOOT' | 'RESET';
@@ -32,7 +32,8 @@ export interface TelemetryFrame {
   events:SimulationEvent[];
 }
 
-const roles:Role[]=['striker','anchor'];
+export const ARCHETYPES:RobotArchetype[]=['striker','bulwark','scout','dribbler','cannon','sweeper'];
+export type TeamComposition={blue:[RobotArchetype,RobotArchetype];orange:[RobotArchetype,RobotArchetype]};
 const FIXED_DT=1/60;
 const GOAL_LEFT=190;
 const GOAL_RIGHT=350;
@@ -41,29 +42,32 @@ const ROBOT_RADIUS=20;
 const MAX_SPEED=520;
 
 export class MatchSimulation {
-  readonly field={width:540,height:960}; readonly duration=90; readonly seed:number; private paused=false; private accumulator=0; private tickIndex=0;
+  readonly field={width:540,height:860}; readonly duration=90; readonly seed:number; private paused=false; private accumulator=0; private tickIndex=0;
   private kickoffTimer=0; private ballKickInvuln=0; private lastKickTeam:Team|undefined; private lastKickX=0; private lastKickY=0; private lastKickElapsed=-10; private kickBurstCount=0; private kickBurstStart=-10; private events:SimulationEvent[]=[]; private telemetry:TelemetryFrame[]=[];
   state:MatchState;
 
-  constructor(seed=42){
+  constructor(seed=42,composition?:Partial<TeamComposition>){
     this.seed=seed;
     const formationOffset=((seed*37)%121)-60;
-    this.state={elapsed:0,status:'ready',score:{blue:0,orange:0},goalResetTimer:0,ball:{x:270,y:480,vx:0,vy:0,radius:BALL_RADIUS,mass:1},robots:[
-      this.robot('blue',0,180+formationOffset,790,'striker'), this.robot('blue',1,360-formationOffset,650,'bulwark'),
-      this.robot('orange',0,360-formationOffset,170,'striker'), this.robot('orange',1,180+formationOffset,310,'bulwark'),
+    const blue=composition?.blue??['striker','bulwark'];
+    const orange=composition?.orange??['striker','bulwark'];
+    this.state={elapsed:0,status:'ready',score:{blue:0,orange:0},goalResetTimer:0,ball:{x:270,y:this.field.height/2,vx:0,vy:0,radius:BALL_RADIUS,mass:1},robots:[
+      this.robot('blue',0,180+formationOffset,790,blue[0]), this.robot('blue',1,360-formationOffset,650,blue[1]),
+      this.robot('orange',0,360-formationOffset,170,orange[0]), this.robot('orange',1,180+formationOffset,310,orange[1]),
     ]};
   }
 
 
   private robot(team:Team,index:number,x:number,y:number,archetype:RobotArchetype):Robot {
-    const role:Role=index===0?'striker':'anchor';
-    return {id:`${team}-${index}`,team,role,shape:this.shapeForRole(role),archetype,x,y,vx:0,vy:0,
-      facingX:team==='blue'?0:0,facingY:team==='blue'?-1:1,radius:ROBOT_RADIUS,
-      mass:archetype==='bulwark'?3.2:2,maxSpeed:archetype==='bulwark'?78:115,acceleration:archetype==='bulwark'?300:500,
+    const role:Role=archetype;
+    const profile=this.profileForArchetype(archetype);
+    return {id:`${team}-${index}`,team,role,shape:this.shapeForRole(role),archetype,x,y,vx:0,vy:0,facingX:team==='blue'?0:0,facingY:team==='blue'?-1:1,radius:ROBOT_RADIUS,
+      mass:profile.mass,maxSpeed:profile.maxSpeed,acceleration:profile.acceleration,
       action:'RESET',target:'BALL',kickCooldown:0,kickLockout:0};
   }
 
-  private shapeForRole(role:Role):RobotShape { return role==='striker'?'circle':'square'; }
+  private shapeForRole(role:Role):RobotShape { return ({striker:'circle',bulwark:'square',scout:'diamond',dribbler:'circle',cannon:'hex',sweeper:'square'} as Record<Role,RobotShape>)[role]; }
+  private profileForArchetype(archetype:RobotArchetype){return ({striker:{mass:2,maxSpeed:230,acceleration:1000},bulwark:{mass:3.2,maxSpeed:156,acceleration:600},scout:{mass:1.6,maxSpeed:290,acceleration:1240},dribbler:{mass:2.1,maxSpeed:210,acceleration:920},cannon:{mass:2.5,maxSpeed:184,acceleration:760},sweeper:{mass:3,maxSpeed:172,acceleration:680}} as const)[archetype];}
 
   start(){
     if(this.state.status==='ready') { this.paused=false; this.kickoffTimer=0.75; this.state.status='running'; this.recordEvent({type:'kickoff',x:this.state.ball.x,y:this.state.ball.y}); }
@@ -80,8 +84,12 @@ export class MatchSimulation {
 
   swapComposition(team:Team){
     const teamRobots=this.state.robots.filter(r=>r.team===team);
-    teamRobots.forEach((r,i)=>{ r.role=roles[(i+1)%2]; r.shape=this.shapeForRole(r.role); r.archetype=r.role==='striker'?'striker':'bulwark'; });
+    const next=teamRobots.map(robot=>(robot.archetype==='striker'?'bulwark':'striker') as RobotArchetype);
+    teamRobots.forEach((r,i)=>this.applyArchetype(r,next[i]));
   }
+
+  setComposition(team:Team,archetypes:[RobotArchetype,RobotArchetype]){this.state.robots.filter(r=>r.team===team).forEach((robot,i)=>this.applyArchetype(robot,archetypes[i]));}
+  private applyArchetype(robot:Robot,archetype:RobotArchetype){const profile=this.profileForArchetype(archetype);robot.role=archetype;robot.archetype=archetype;robot.shape=this.shapeForRole(archetype);robot.mass=profile.mass;robot.maxSpeed=profile.maxSpeed;robot.acceleration=profile.acceleration;}
 
   tick(dt:number){
     if(this.paused||this.state.status==='finished'||this.state.status==='ready'||this.state.status==='paused') return;
@@ -119,11 +127,30 @@ export class MatchSimulation {
     const b=this.state.ball;
     for(const robot of this.state.robots){
       const attack=robot.team==='blue'?-1:1;
-      const isStriker=robot.role==='striker';
-      const lane=robot.id.endsWith('1')?90:-90;
-      const behindX=isStriker&&Math.abs(b.x-this.field.width/2)>160?b.x-Math.sign(b.x-this.field.width/2)*80:b.x;
-      const targetX=isStriker?behindX:(this.field.width/2+lane+(b.x-this.field.width/2)*0.35);
-      const targetY=isStriker?b.y:(this.field.height/2-attack*150+(b.y-this.field.height/2)*0.25);
+      const side=robot.id.endsWith('1')?90:-90;
+      const centerX=this.field.width/2;
+      let targetX=centerX+side,targetY=this.field.height/2-attack*150+(b.y-this.field.height/2)*0.25;
+      let action:Action='COVER';
+      switch(robot.archetype){
+        case 'striker': {
+          targetX=Math.abs(b.x-centerX)>160?b.x-Math.sign(b.x-centerX)*80:b.x+(robot.team==='blue'?-26:26); targetY=b.y-(robot.team==='blue'?-1:1)*20; action=Math.hypot(targetX-robot.x,targetY-robot.y)<48?'CARRY':'PRESS'; break;
+        }
+        case 'scout': {
+          targetX=b.x+b.vx*0.18; targetY=b.y+b.vy*0.18; action='PRESS'; break;
+        }
+        case 'dribbler': {
+          targetX=b.x-Math.sign(b.x-centerX||1)*28+side*0.25; targetY=b.y-attack*24; action='CARRY'; break;
+        }
+        case 'cannon': {
+          targetX=b.x-Math.sign(b.x-centerX||1)*70; targetY=b.y-attack*34; action='SHOOT'; break;
+        }
+        case 'sweeper': {
+          targetX=centerX+side*0.55; targetY=attack>0?this.field.height-150:150; action='RESET'; break;
+        }
+        case 'bulwark': {
+          action='COVER'; break;
+        }
+      }
       const dx=targetX-robot.x,dy=targetY-robot.y,len=Math.hypot(dx,dy)||1;
       const desiredX=dx/len*robot.maxSpeed,desiredY=dy/len*robot.maxSpeed;
       const maxDelta=robot.acceleration*dt;
@@ -134,9 +161,8 @@ export class MatchSimulation {
       if(Math.hypot(robot.vx,robot.vy)>1){const facingLen=Math.hypot(robot.vx,robot.vy);robot.facingX=robot.vx/facingLen;robot.facingY=robot.vy/facingLen;}
       robot.x=this.clamp(robot.x+robot.vx*dt,28,this.field.width-28);
       robot.y=this.clamp(robot.y+robot.vy*dt,28,this.field.height-28);
-      const distance=Math.hypot(dx,dy);
-      robot.target=isStriker?'BALL':'BALL_SUPPORT';
-      robot.action=isStriker?(distance<48?'CARRY':'PRESS'):'COVER';
+      robot.target=robot.archetype==='sweeper'?'GOAL_COVER':robot.archetype==='bulwark'?'BALL_SUPPORT':'BALL';
+      robot.action=action;
     }
   }
 
@@ -176,7 +202,7 @@ export class MatchSimulation {
         this.recordEvent({type:'robot-ball-collision',ids:[robot.id],x:b.x,y:b.y,impulse,vxBefore:beforeX,vyBefore:beforeY,vxAfter:b.vx,vyAfter:b.vy});
       }
       const forward=robot.facingX*nx+robot.facingY*ny;
-      if(robot.role==='striker'&&dist<=32&&forward>=Math.cos(35*Math.PI/180)) candidates.push({robot,nx,ny,distance:dist,score:forward-dist/100});
+      if((robot.archetype==='striker'||robot.archetype==='cannon')&&dist<=32&&forward>=Math.cos(35*Math.PI/180)) candidates.push({robot,nx,ny,distance:dist,score:forward-dist/100});
     }
     candidates.sort((a,b2)=>b2.score-a.score||a.robot.id.localeCompare(b2.robot.id));
     if(candidates[0])this.tryKick(candidates[0].robot,candidates[0].nx,candidates[0].ny);
@@ -184,7 +210,7 @@ export class MatchSimulation {
 
   private tryKick(robot:Robot,nx:number,ny:number){
     const b=this.state.ball;
-    if(robot.role!=='striker'||robot.kickCooldown>0||robot.kickLockout>0||this.kickoffTimer>0||this.ballKickInvuln>0) return;
+    if((robot.archetype!=='striker'&&robot.archetype!=='cannon')||robot.kickCooldown>0||robot.kickLockout>0||this.kickoffTimer>0||this.ballKickInvuln>0) return;
     const forward=robot.facingX*nx+robot.facingY*ny;
     if(forward<Math.cos(35*Math.PI/180)||Math.hypot(b.x-robot.x,b.y-robot.y)>32||this.kickBurstCount>=3) return;
     if(this.lastKickTeam===robot.team&&this.state.elapsed-this.lastKickElapsed<0.24&&Math.hypot(b.x-this.lastKickX,b.y-this.lastKickY)<40)return;
@@ -193,11 +219,11 @@ export class MatchSimulation {
     const goalBias=this.clamp((goalX-b.x)/160,-1,1)*0.55;
     const aimX=robot.facingX*0.35+goalBias,aimY=robot.facingY*0.25+attackY*0.85;
     const aimLen=Math.hypot(aimX,aimY)||1;
-    const power=180;
+    const power=robot.archetype==='cannon'?205:180;
     const beforeX=b.vx,beforeY=b.vy;
     b.vx=this.clamp(b.vx+aimX/aimLen*power/b.mass,-MAX_SPEED,MAX_SPEED);
     b.vy=this.clamp(b.vy+aimY/aimLen*power/b.mass,-MAX_SPEED,MAX_SPEED);
-    robot.vx*=0.55;robot.vy*=0.55;robot.kickCooldown=0.85;robot.kickLockout=0.10;robot.action='KICK';
+    robot.vx*=0.55;robot.vy*=0.55;robot.kickCooldown=robot.archetype==='cannon'?1.1:0.85;robot.kickLockout=0.10;robot.action=robot.archetype==='cannon'?'SHOOT':'KICK';
     this.ballKickInvuln=0.12;this.lastKickTeam=robot.team;this.lastKickX=b.x;this.lastKickY=b.y;this.lastKickElapsed=this.state.elapsed;if(this.state.elapsed-this.kickBurstStart>0.8)this.kickBurstStart=this.state.elapsed;this.kickBurstCount++;
     this.recordEvent({type:'kick',ids:[robot.id],x:b.x,y:b.y,impulse:power,vxBefore:beforeX,vyBefore:beforeY,vxAfter:b.vx,vyAfter:b.vy});
   }
