@@ -33,7 +33,7 @@ describe('responsive portrait presentation contract', () => {
   it('exposes Korean controls and role descriptions', () => {
     expect(main).toContain('경기 시작');
     expect(main).toContain('일시정지');
-    expect(main).toContain('스트라이커');
+    expect(main).toContain('돌격대장');
     expect(main).toContain('앵커');
     expect(scene).toContain('압박');
     expect(scene).toContain('커버');

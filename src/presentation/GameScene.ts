@@ -43,7 +43,7 @@ export class GameScene extends Phaser.Scene {
     const c=this.add.container(this.field.x+r.x,this.field.y+r.y,[ring,body,label]);
     this.robotGraphics.set(r.id,c);
   }
-  private roleLabel(r:Robot):string { return r.archetype==='bulwark'?'앵커':r.archetype==='striker'?'스트라이커':r.archetype==='scout'?'정찰봇':r.archetype==='dribbler'?'운반봇':r.archetype==='cannon'?'포격봇':'청소봇'; }
+  private roleLabel(r:Robot):string { return r.archetype==='bulwark'?'앵커':r.archetype==='striker'?'돌격대장':r.archetype==='scout'?'정찰봇':r.archetype==='dribbler'?'운반봇':r.archetype==='cannon'?'포격봇':'청소봇'; }
   private actionLabel(action:Robot['action']):string { return ({PRESS:'압박',COVER:'커버',CARRY:'운반',KICK:'킥',SHOOT:'강슛',RESET:'복귀'} as Record<Robot['action'],string>)[action]; }
   private render():void { const s=this.sim.state;this.scoreText.setText(`점수  ${s.score.blue} : ${s.score.orange}`);const remain=Math.ceil(90-s.elapsed);this.timeText.setText(`${Math.floor(remain/60).toString().padStart(2,'0')}:${(remain%60).toString().padStart(2,'0')}`);const phase=s.goalResetTimer>0?`골인 // 재시작 ${s.goalResetTimer.toFixed(1)}초`:`${s.status==='ready'?'준비':s.status==='running'?'경기 중':s.status==='paused'?'일시정지':'경기 종료'}  //  속도 ${this.speed.toFixed(1)}배  //  파랑 ↑  주황 ↓`;this.statusText.setText(phase);this.ball.setPosition(this.field.x+s.ball.x,this.field.y+s.ball.y);for(const r of s.robots){const c=this.robotGraphics.get(r.id);if(c){c.setPosition(this.field.x+r.x,this.field.y+r.y);const label=c.list[2] as Phaser.GameObjects.Text;label.setText(`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`);}}}
 }

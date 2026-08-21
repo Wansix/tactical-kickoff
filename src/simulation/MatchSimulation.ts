@@ -134,7 +134,7 @@ export class MatchSimulation {
       let action:Action='COVER';
       switch(robot.archetype){
         case 'striker': {
-          targetX=Math.abs(b.x-centerX)>160?b.x-Math.sign(b.x-centerX)*80:b.x+(robot.team==='blue'?-26:26); targetY=b.y-(robot.team==='blue'?-1:1)*20; action=Math.hypot(targetX-robot.x,targetY-robot.y)<48?'CARRY':'PRESS'; break;
+          targetX=b.x-b.vx*0.12; targetY=b.y-(robot.team==='blue'?-1:1)*32-b.vy*0.08; action=Math.hypot(targetX-robot.x,targetY-robot.y)<52?'CARRY':'PRESS'; break;
         }
         case 'scout': {
           targetX=b.x+b.vx*0.18; targetY=b.y+b.vy*0.18; action='PRESS'; break;
@@ -151,8 +151,9 @@ export class MatchSimulation {
         case 'bulwark': {
           const homeY=attack>0?this.field.height-160:160;
           const ballInOwnHalf=attack>0?b.y>centerY:b.y<centerY;
+          const homeX=centerX+side;
           targetY=ballInOwnHalf?homeY+(b.y-homeY)*0.55:homeY;
-          targetX=centerX+side;
+          targetX=ballInOwnHalf?homeX+(b.x-homeX)*0.45:homeX+(b.x-centerX)*0.12;
           action=ballInOwnHalf?'PRESS':'COVER'; break;
         }
       }
@@ -231,7 +232,7 @@ export class MatchSimulation {
     const goalBias=this.clamp((goalX-b.x)/160,-1,1)*0.55;
     const aimX=robot.facingX*0.35+goalBias,aimY=robot.facingY*0.25+attackY*0.85;
     const aimLen=Math.hypot(aimX,aimY)||1;
-    const power=robot.archetype==='cannon'?205:180;
+    const power=robot.archetype==='cannon'?260:250;
     const beforeX=b.vx,beforeY=b.vy;
     b.vx=this.clamp(b.vx+aimX/aimLen*power/b.mass,-MAX_SPEED,MAX_SPEED);
     b.vy=this.clamp(b.vy+aimY/aimLen*power/b.mass,-MAX_SPEED,MAX_SPEED);
