@@ -148,7 +148,11 @@ export class MatchSimulation {
           targetX=centerX+side*0.55; targetY=attack>0?this.field.height-150:150; action='RESET'; break;
         }
         case 'bulwark': {
-          action='COVER'; break;
+          const homeY=attack>0?this.field.height-160:160;
+          const ballInOwnHalf=attack>0?b.y>centerX:b.y<centerX;
+          targetY=ballInOwnHalf?homeY+(b.y-homeY)*0.35:homeY;
+          targetX=centerX+side;
+          action=ballInOwnHalf?'PRESS':'COVER'; break;
         }
       }
       const dx=targetX-robot.x,dy=targetY-robot.y,len=Math.hypot(dx,dy)||1;
@@ -173,7 +177,7 @@ export class MatchSimulation {
       const minDist=a.radius+b.radius;
       if(dist<minDist){
         const nx=dx/dist,ny=dy/dist,penetration=minDist-dist;
-        const correction=penetration/2;
+        const correction=penetration*0.75;
         a.x=this.clamp(a.x-nx*correction,28,this.field.width-28); a.y=this.clamp(a.y-ny*correction,28,this.field.height-28);
         b.x=this.clamp(b.x+nx*correction,28,this.field.width-28); b.y=this.clamp(b.y+ny*correction,28,this.field.height-28);
         const relative=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
