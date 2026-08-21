@@ -129,6 +129,7 @@ export class MatchSimulation {
       const attack=robot.team==='blue'?-1:1;
       const side=robot.id.endsWith('1')?90:-90;
       const centerX=this.field.width/2;
+      const centerY=this.field.height/2;
       let targetX=centerX+side,targetY=this.field.height/2-attack*150+(b.y-this.field.height/2)*0.25;
       let action:Action='COVER';
       switch(robot.archetype){
@@ -149,10 +150,17 @@ export class MatchSimulation {
         }
         case 'bulwark': {
           const homeY=attack>0?this.field.height-160:160;
-          const ballInOwnHalf=attack>0?b.y>centerX:b.y<centerX;
-          targetY=ballInOwnHalf?homeY+(b.y-homeY)*0.35:homeY;
+          const ballInOwnHalf=attack>0?b.y>centerY:b.y<centerY;
+          targetY=ballInOwnHalf?homeY+(b.y-homeY)*0.55:homeY;
           targetX=centerX+side;
           action=ballInOwnHalf?'PRESS':'COVER'; break;
+        }
+      }
+      if(robot.archetype==='striker'){
+        for(const other of this.state.robots){
+          if(other.id===robot.id)continue;
+          const awayX=robot.x-other.x,awayY=robot.y-other.y,dist=Math.hypot(awayX,awayY);
+          if(dist>0&&dist<96){const push=(96-dist)/dist;targetX+=awayX*push*1.35;targetY+=awayY*push*1.35;}
         }
       }
       const dx=targetX-robot.x,dy=targetY-robot.y,len=Math.hypot(dx,dy)||1;
@@ -241,15 +249,15 @@ export class MatchSimulation {
 
   private resolveGoalOrWalls(){
     const b=this.state.ball; const inGoalMouth=b.x>=GOAL_LEFT&&b.x<=GOAL_RIGHT;
-    if(b.y<=18&&b.vy<0&&inGoalMouth){this.state.score.blue++;this.beginGoalReset();return;}
-    if(b.y>=this.field.height-18&&b.vy>0&&inGoalMouth){this.state.score.orange++;this.beginGoalReset();return;}
+    if(b.y<=18&&b.vy<0&&inGoalMouth){this.state.score.blue++;this.beginGoalReset('blue');return;}
+    if(b.y>=this.field.height-18&&b.vy>0&&inGoalMouth){this.state.score.orange++;this.beginGoalReset('orange');return;}
     if(b.x<18){b.x=18;b.vx=Math.abs(b.vx)*0.7;this.recordEvent({type:'wall-bounce',x:b.x,y:b.y});}
     if(b.x>this.field.width-18){b.x=this.field.width-18;b.vx=-Math.abs(b.vx)*0.7;this.recordEvent({type:'wall-bounce',x:b.x,y:b.y});}
     if(b.y<18){b.y=18;b.vy=Math.abs(b.vy)*0.7;this.recordEvent({type:'wall-bounce',x:b.x,y:b.y});}
     if(b.y>this.field.height-18){b.y=this.field.height-18;b.vy=-Math.abs(b.vy)*0.7;this.recordEvent({type:'wall-bounce',x:b.x,y:b.y});}
   }
 
-  private beginGoalReset(){const b=this.state.ball;b.vx=0;b.vy=0;this.state.goalResetTimer=1;this.recordEvent({type:'goal',x:b.x,y:b.y});}
+  private beginGoalReset(scoringTeam:Team){const b=this.state.ball;b.y=scoringTeam==='blue'?-35:this.field.height+35;b.vx=0;b.vy=0;this.state.goalResetTimer=1;this.recordEvent({type:'goal',x:b.x,y:b.y});}
   private resetBall(){const b=this.state.ball;b.x=this.field.width/2;b.y=this.field.height/2;b.vx=0;b.vy=0;this.state.goalResetTimer=0;this.kickoffTimer=0.75;this.recordEvent({type:'kickoff',x:b.x,y:b.y});}
 
   private recordEvent(event:Omit<SimulationEvent,'tick'|'elapsed'>){

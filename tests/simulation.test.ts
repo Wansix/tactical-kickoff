@@ -95,6 +95,24 @@ describe('MatchSimulation', () => {
     expect(after.some((r,i)=>Math.hypot(r.x-before[i].x,r.y-before[i].y)>10)).toBe(true);
   });
 
+  it('sends each anchor toward a ball inside its own half', () => {
+    const blueMatch = new MatchSimulation(42); blueMatch.start();
+    const blueBefore={...blueMatch.state.robots.find(r=>r.id==='blue-1')!};
+    blueMatch.state.ball.y=200; blueMatch.tick(1/60);
+    expect(blueMatch.state.robots.find(r=>r.id==='blue-1')!.action).toBe('PRESS');
+    for(let i=0;i<2*60;i++){blueMatch.state.ball.y=200;blueMatch.tick(1/60);}
+    const blueAfter=blueMatch.state.robots.find(r=>r.id==='blue-1')!;
+    expect(Math.hypot(blueAfter.x-blueBefore.x,blueAfter.y-blueBefore.y)).toBeGreaterThan(20);
+
+    const orangeMatch = new MatchSimulation(42); orangeMatch.start();
+    const orangeBefore={...orangeMatch.state.robots.find(r=>r.id==='orange-1')!};
+    orangeMatch.state.ball.y=700; orangeMatch.tick(1/60);
+    expect(orangeMatch.state.robots.find(r=>r.id==='orange-1')!.action).toBe('PRESS');
+    for(let i=0;i<2*60;i++){orangeMatch.state.ball.y=700;orangeMatch.tick(1/60);}
+    const orangeAfter=orangeMatch.state.robots.find(r=>r.id==='orange-1')!;
+    expect(Math.hypot(orangeAfter.x-orangeBefore.x,orangeAfter.y-orangeBefore.y)).toBeGreaterThan(20);
+  });
+
   it('creates real attacking progression instead of an endless striker pass loop', () => {
     const match = new MatchSimulation(42);
     match.start();

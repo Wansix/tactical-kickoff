@@ -42,6 +42,15 @@ describe('physics-first simulation contract', () => {
     expect(match.state.ball.y).toBeGreaterThanOrEqual(18);
   });
 
+  it('holds the scored ball inside the external goal frame for either team', () => {
+    const match = new MatchSimulation(105); match.start();
+    match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height+3; match.state.ball.vy=10;
+    match.tick(1/60);
+    expect(match.state.score.orange).toBe(1);
+    expect(match.state.ball.y).toBeGreaterThan(match.field.height);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
+  });
+
   it('finishes only after a goal pause started on the final tick', () => {
     const match=new MatchSimulation(106); match.start();
     match.state.elapsed=match.duration-1/60;
