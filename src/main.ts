@@ -17,4 +17,4 @@ const bindControls=(scene:GameScene)=>{
   speed.onchange=()=>scene.setMatchSpeed(Number(speed.value));
   controls.forEach((control)=>control.disabled=false);speed.disabled=false;
 };
-new Phaser.Game({type:Phaser.AUTO,width:700,height:1100,parent:'game',backgroundColor:'#08111d',scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:700,height:1100},scene:[new GameScene(bindControls)]});
+new Phaser.Game({type:Phaser.AUTO,width:580,height:1100,parent:'game',backgroundColor:'#08111d',scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:580,height:1100},scene:[new GameScene(bindControls)]});

@@ -9,7 +9,7 @@ export class GameScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
   private speed = 1;
-  private field = { x: 80, y: 90, w: 540, h: 960 };
+  private field = { x: 20, y: 90, w: 540, h: 960 };
   private onReady: ((scene: GameScene) => void) | undefined;
   private onFinish: (() => void) | undefined;
   constructor(onReady?: (scene: GameScene) => void, onFinish?: () => void) { super('match'); this.onReady = onReady; this.onFinish = onFinish; }
@@ -18,7 +18,7 @@ export class GameScene extends Phaser.Scene {
     const g=this.add.graphics(); g.fillStyle(0x102b37);g.fillRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x3c7180,1);g.strokeRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x5b98a1,.55);g.strokeRect(this.field.x,this.field.y+this.field.h/2-1,this.field.w,2);g.strokeCircle(this.field.x+this.field.w/2,this.field.y+this.field.h/2,78);g.strokeRect(this.field.x+190,this.field.y-1,160,82);g.strokeRect(this.field.x+190,this.field.y+this.field.h-81,160,82);
     this.add.rectangle(this.field.x+225,this.field.y-9,90,10,0x53d6df); this.add.rectangle(this.field.x+225,this.field.y+this.field.h+9,90,10,0xff9f43);
     this.ball=this.add.circle(this.field.x+270,this.field.y+480,10,0xf6f3dc).setStrokeStyle(3,0xffd16b);
-    this.scoreText=this.add.text(80,24,'BLUE  0   —   0  ORANGE',{fontFamily:'monospace',fontSize:'25px',color:'#e6f7f5',fontStyle:'bold'}); this.timeText=this.add.text(540,30,'01:30',{fontFamily:'monospace',fontSize:'22px',color:'#9ad4d3'}); this.statusText=this.add.text(80,62,'READY // press START TO DEPLOY',{fontFamily:'monospace',fontSize:'12px',color:'#72a9af'});
+    this.scoreText=this.add.text(20,24,'BLUE  0   —   0  ORANGE',{fontFamily:'monospace',fontSize:'25px',color:'#e6f7f5',fontStyle:'bold'}); this.timeText=this.add.text(420,30,'01:30',{fontFamily:'monospace',fontSize:'22px',color:'#9ad4d3'}); this.statusText=this.add.text(20,62,'READY // press START TO DEPLOY',{fontFamily:'monospace',fontSize:'12px',color:'#72a9af'});
     for(const r of this.sim.state.robots) this.createRobot(r);
     this.onReady?.(this);
     this.onReady = undefined;
