@@ -52,4 +52,19 @@ describe('MatchSimulation', () => {
       expect(Math.hypot(a.x-b.x,a.y-b.y)).toBeGreaterThanOrEqual(37.9);
     }
   });
+
+  it('keeps the match live and reaches a terminal state after 90 seconds', () => {
+    const match = new MatchSimulation(2025);
+    match.start();
+    let movingFrames=0;
+    let previousBall={...match.state.ball};
+    for(let i=0;i<90*60;i++){
+      match.tick(1/60);
+      if(Math.hypot(match.state.ball.x-previousBall.x,match.state.ball.y-previousBall.y)>0.01) movingFrames++;
+      previousBall={...match.state.ball};
+    }
+    expect(movingFrames).toBeGreaterThan(90);
+    expect(match.state.status).toBe('finished');
+    expect(match.state.robots.some(r=>r.action!=='RESET')).toBe(true);
+  });
 });
