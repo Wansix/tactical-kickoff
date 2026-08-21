@@ -109,6 +109,20 @@ describe('physics-first simulation contract', () => {
     }
   });
 
+  it('does not let sequential robot updates give every kickoff to blue', () => {
+    let blue=0,orange=0;
+    for(let seed=1;seed<=20;seed++){
+      const match=new MatchSimulation(seed); match.start();
+      for(let i=0;i<6*60;i++)match.tick(1/60);
+      const first=match.getEvents().find(event=>event.type==='kick')?.ids?.[0]??'';
+      if(first.startsWith('blue'))blue++;
+      if(first.startsWith('orange'))orange++;
+    }
+    expect(blue).toBeGreaterThan(0);
+    expect(orange).toBeGreaterThan(0);
+    expect(Math.max(blue,orange)).toBeLessThanOrEqual(16);
+  });
+
   it('escapes a ball held motionless in a chamfered corner after a bounded delay', () => {
     const match = new MatchSimulation(109); match.start();
     match.state.ball.x = 18; match.state.ball.y = 18;

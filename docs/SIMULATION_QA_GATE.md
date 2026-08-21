@@ -70,3 +70,18 @@
 - `npm test`, typecheck, build는 필요조건이지 충분조건이 아니다.
 - 실패 시 원인 telemetry, 재현 seed, 최소 수정, 재실행 결과를 기록한다.
 - 수정 후 개발팀 재실행 → 독립 검수팀 재검수 순서를 반복한다.
+
+## 추가 검수 지표
+
+`npm run qa:simulation`은 기본 50 seed/60초를 실행한다. 장기 sweep는 `QA_SEEDS=100 QA_SECONDS=60 npm run qa:simulation`으로 실행한다.
+
+필수 telemetry:
+
+- `firstKickBlue`, `firstKickOrange`: kickoff 선입 팀 독점 방지
+- 팀별 득점·득점 seed: 팀 대칭성 확인
+- `maxCollisionRun`, `maxDirectionReversalRun`: 반복 충돌·왕복 확인
+- `uniqueSignatures`, `totalGoals`: 상황 다양성과 실제 진행 확인
+- wall bounce와 corner recovery: 벽 접촉 반복과 stuck 탈출 분리
+- goal reset 후 formation/속도/cooldown 회귀 테스트
+
+첫 킥 arbitration은 kickoff/reset 직후에만 허용하고, 일반 경기 중에는 공 소유권이나 팀 잠금을 사용하지 않는다. QA가 통과해도 브라우저에서 실제 canvas와 console error를 별도로 확인한다.
