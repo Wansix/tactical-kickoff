@@ -24,6 +24,16 @@ describe('MatchSimulation', () => {
     expect(match.state.ball.y).toBeCloseTo(match.field.height / 2);
   });
 
+  it('resets robots to their seed formation with no residual motion after a goal hold', () => {
+    const match = new MatchSimulation(112); match.start();
+    const formation = match.state.robots.map(robot => ({id:robot.id,x:robot.x,y:robot.y}));
+    match.state.robots.forEach(robot => { robot.x=270; robot.y=430; robot.vx=90; robot.vy=-40; robot.kickCooldown=0.8; robot.kickLockout=0.1; });
+    match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
+    match.tick(1/60); match.tick(1);
+    expect(match.state.robots.map(robot => ({id:robot.id,x:robot.x,y:robot.y}))).toEqual(formation);
+    expect(match.state.robots.every(robot => robot.vx===0 && robot.vy===0 && robot.kickCooldown===0 && robot.kickLockout===0)).toBe(true);
+  });
+
   it('does not score outside the rendered goal mouth', () => {
     const match = new MatchSimulation(8); match.start();
     match.state.ball.x = 40; match.state.ball.y = -3; match.state.ball.vy = -10; match.tick(1/60);
@@ -86,13 +96,12 @@ describe('MatchSimulation', () => {
   });
 
   it('moves anchors in response to the changing ball position', () => {
-    const match = new MatchSimulation(42);
-    match.start();
-    for(let i=0;i<10*60;i++) match.tick(1/60);
-    const before = match.state.robots.filter(r=>r.role==='bulwark').map(r=>({x:r.x,y:r.y}));
-    for(let i=0;i<20*60;i++) match.tick(1/60);
-    const after = match.state.robots.filter(r=>r.role==='bulwark');
-    expect(after.some((r,i)=>Math.hypot(r.x-before[i].x,r.y-before[i].y)>10)).toBe(true);
+    const match = new MatchSimulation(42); match.start();
+    const before=match.state.robots.filter(r=>r.role==='bulwark').map(r=>({...r}));
+    match.state.ball.y=200; match.state.ball.x=120;
+    for(let i=0;i<2*60;i++){match.state.ball.y=200;match.state.ball.x=120;match.tick(1/60);}
+    const after=match.state.robots.filter(r=>r.role==='bulwark');
+    expect(after.some((r,i)=>Math.hypot(r.x-before[i].x,r.y-before[i].y)>20)).toBe(true);
   });
 
   it('sends each anchor toward a ball inside its own half', () => {
@@ -111,6 +120,36 @@ describe('MatchSimulation', () => {
     for(let i=0;i<2*60;i++){orangeMatch.state.ball.y=700;orangeMatch.tick(1/60);}
     const orangeAfter=orangeMatch.state.robots.find(r=>r.id==='orange-1')!;
     expect(Math.hypot(orangeAfter.x-orangeBefore.x,orangeAfter.y-orangeBefore.y)).toBeGreaterThan(20);
+  });
+
+  it('stages a striker that is between the ball and the opponent goal', () => {
+    const match=new MatchSimulation(42); match.start();
+    const striker=match.state.robots.find(r=>r.id==='blue-0')!;
+    match.state.ball.x=270; match.state.ball.y=430;
+    striker.x=270; striker.y=300;
+    match.tick(1/60);
+    expect(Math.abs(striker.vx)).toBeGreaterThan(0);
+    expect(striker.action).toBe('PRESS');
+  });
+
+  it('stages a bulwark that has crossed to the attack side of its own-half ball', () => {
+    const match=new MatchSimulation(42); match.start();
+    const anchor=match.state.robots.find(r=>r.id==='blue-1')!;
+    match.state.ball.x=270; match.state.ball.y=600;
+    anchor.x=270; anchor.y=500;
+    match.tick(1/60);
+    expect(Math.abs(anchor.vx)).toBeGreaterThan(0);
+  });
+
+  it('settles robots near a stationary target instead of oscillating forever', () => {
+    const match=new MatchSimulation(77,{blue:['bulwark','bulwark'],orange:['bulwark','bulwark']});
+    match.start();
+    const samples:number[]=[];
+    for(let i=0;i<8*60;i++){
+      match.tick(1/60);
+      if(i>=6*60)samples.push(match.state.robots[1].y);
+    }
+    expect(Math.max(...samples)-Math.min(...samples)).toBeLessThan(8);
   });
 
   it('creates real attacking progression instead of an endless striker pass loop', () => {

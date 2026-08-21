@@ -97,4 +97,47 @@ describe('physics-first simulation contract', () => {
       expect(robot.y).toBeLessThanOrEqual(a.field.height-28);
     }
   });
+
+  it('keeps every kick pointed toward the kicking team attack goal', () => {
+    const match=new MatchSimulation(42); match.start();
+    for(let i=0;i<60*60;i++)match.tick(1/60);
+    const kicks=match.getEvents().filter(event=>event.type==='kick');
+    expect(kicks.length).toBeGreaterThan(0);
+    for(const kick of kicks){
+      const team=kick.ids?.[0].startsWith('blue')?'blue':'orange';
+      expect(team==='blue'?(kick.vyAfter??0)<0:(kick.vyAfter??0)>0).toBe(true);
+    }
+  });
+
+  it('escapes a ball held motionless in a chamfered corner after a bounded delay', () => {
+    const match = new MatchSimulation(109); match.start();
+    match.state.ball.x = 18; match.state.ball.y = 18;
+    match.state.robots.forEach(robot => { robot.maxSpeed=0; robot.acceleration=0; });
+    for(let i=0;i<45;i++) match.tick(1/60);
+    for(let i=0;i<88;i++) match.tick(1/60);
+    expect(match.state.ball.vx).toBe(0);
+    expect(match.state.ball.vy).toBe(0);
+    match.tick(1/60);
+    expect(Math.hypot(match.state.ball.vx,match.state.ball.vy)).toBeGreaterThan(0);
+    expect(match.getEvents().filter(event=>event.type==='stuck-recovery')).toHaveLength(1);
+  });
+
+  it('does not repeatedly overwrite a recovered ball velocity every tick', () => {
+    const match = new MatchSimulation(110); match.start();
+    match.state.ball.x = 18; match.state.ball.y = 18;
+    match.state.robots.forEach(robot => { robot.maxSpeed=0; robot.acceleration=0; });
+    for(let i=0;i<45+90;i++) match.tick(1/60);
+    const recoveredVelocity = {...match.state.ball};
+    match.tick(1/60);
+    expect(match.state.ball.vx).not.toBe(recoveredVelocity.vx);
+    expect(match.getEvents().filter(event=>event.type==='stuck-recovery')).toHaveLength(1);
+  });
+
+  it('keeps the goal sensor separate from the chamfered wall', () => {
+    const match = new MatchSimulation(111); match.start();
+    match.state.ball.x = match.field.width/2; match.state.ball.y = 17;
+    match.state.ball.vy = -10;
+    match.tick(1/60);
+    expect(match.state.score.blue).toBe(1);
+  });
 });
