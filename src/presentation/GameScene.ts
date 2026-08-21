@@ -27,7 +27,7 @@ export class GameScene extends Phaser.Scene {
   start():void { this.sim.start(); }
   togglePause():void { this.sim.setPaused(this.sim.state.status!=='paused'); }
   setMatchSpeed(speed:number):void { this.speed=speed; }
-  swap(team:Team):void { this.sim.swapComposition(team); }
+  swap(team:Team):void { this.sim.swapComposition(team); for(const r of this.sim.state.robots.filter(robot=>robot.team===team)){ this.robotGraphics.get(r.id)?.destroy(); this.robotGraphics.delete(r.id); this.createRobot(r); } this.render(); }
   reset():void { this.sim=new MatchSimulation(2025); for(const c of Array.from(this.robotGraphics.values()))c.destroy();this.robotGraphics.clear();for(const r of this.sim.state.robots)this.createRobot(r); }
   getState(){return this.sim.state;}
   private createRobot(r:Robot):void {

@@ -11,10 +11,10 @@ export class MatchSimulation {
   constructor(seed=42){ this.seed=seed; this.state={elapsed:0,status:'ready',score:{blue:0,orange:0},ball:{x:270,y:480,vx:0,vy:0},robots:[this.robot('blue',0,180,790),this.robot('blue',1,360,650),this.robot('orange',0,360,170),this.robot('orange',1,180,310)]}; }
   private random(){ this.seed=(this.seed*1664525+1013904223)>>>0; return this.seed/4294967296; }
   private robot(team:Team,index:number,x:number,y:number):Robot {
-    const shapes:RobotShape[] = ['circle','square','diamond','hex'];
-    const shape = shapes[(team === 'blue' ? index : index + 2) % shapes.length];
+    const shape = this.shapeForRole(roles[index]);
     return {id:`${team}-${index}`,team,role:roles[index],shape,x,y,vx:0,vy:0,action:'RESET',target:'BALL'};
   }
+  private shapeForRole(role:Role):RobotShape { return role==='striker'?'circle':'square'; }
   start(){ if(this.state.status==='ready') { this.paused=false; this.state.ball.vx=24; this.state.ball.vy=-90; this.state.status='running'; } }
   setPaused(value:boolean){
     if(this.state.status==='finished') return;
@@ -22,17 +22,17 @@ export class MatchSimulation {
     if(!value && this.state.status==='paused'){ this.paused=false; this.state.status='running'; }
   }
   setSpeed(_speed:number){ /* presentation controls the tick cadence */ }
-  swapComposition(team:Team){ const teamRobots=this.state.robots.filter(r=>r.team===team); teamRobots.forEach((r,i)=>r.role=roles[(i+1)%2]); }
+  swapComposition(team:Team){ const teamRobots=this.state.robots.filter(r=>r.team===team); teamRobots.forEach((r,i)=>{r.role=roles[(i+1)%2];r.shape=this.shapeForRole(r.role);}); }
   tick(dt:number){ if(this.paused||this.state.status==='finished'||this.state.status==='ready'||this.state.status==='paused') return; const step=Math.max(0,dt); this.kickCooldown=Math.max(0,this.kickCooldown-step); this.state.elapsed=Math.min(this.duration,this.state.elapsed+step);
-    const b=this.state.ball; b.x+=b.vx*dt; b.y+=b.vy*dt; b.vx*=Math.pow(.18,dt); b.vy*=Math.pow(.18,dt);
+    const b=this.state.ball; b.x+=b.vx*dt; b.y+=b.vy*dt; b.vx*=Math.pow(.88,dt); b.vy*=Math.pow(.88,dt);
     if(b.x<18||b.x>this.field.width-18){b.x=Math.max(18,Math.min(this.field.width-18,b.x));b.vx*=-.7;}
     if(b.y<-2){this.state.score.blue++;this.resetBall(1);} else if(b.y>this.field.height+2){this.state.score.orange++;this.resetBall(-1);} else { this.moveRobots(dt); }
     if(this.state.elapsed>=this.duration-1e-9)this.state.status='finished';
   }
   private resetBall(direction:number){const b=this.state.ball;b.x=this.field.width/2;b.y=this.field.height/2;b.vx=(this.random()-.5)*100;b.vy=direction*140;this.kickCooldown=.25;}
-  private moveRobots(dt:number){const b=this.state.ball; const strikers=this.state.robots.filter(r=>r.role==='striker'); for(const r of this.state.robots){const attack=(r.team==='blue'?-1:1); const isStriker=r.role==='striker'; const targetX=isStriker?b.x:(this.field.width/2+(r.id.endsWith('1')?90:-90)); const targetY=isStriker?b.y:(this.field.height/2-attack*150); const dx=targetX-r.x,dy=targetY-r.y,len=Math.hypot(dx,dy)||1; const speed=isStriker?105:72; r.vx=dx/len*speed;r.vy=dy/len*speed;r.x=Math.max(28,Math.min(this.field.width-28,r.x+r.vx*dt));r.y=Math.max(28,Math.min(this.field.height-28,r.y+r.vy*dt));r.target=isStriker?'BALL':'LANE';r.action=isStriker?(Math.hypot(dx,dy)<48?'CARRY':'PRESS'):'COVER';}
+  private moveRobots(dt:number){const b=this.state.ball; const strikers=this.state.robots.filter(r=>r.role==='striker'); for(const r of this.state.robots){const attack=(r.team==='blue'?-1:1); const isStriker=r.role==='striker'; const lane=r.id.endsWith('1')?90:-90; const targetX=isStriker?b.x:(this.field.width/2+lane+(b.x-this.field.width/2)*.35); const targetY=isStriker?b.y:(this.field.height/2-attack*150+(b.y-this.field.height/2)*.25); const dx=targetX-r.x,dy=targetY-r.y,len=Math.hypot(dx,dy)||1; const speed=isStriker?105:72; r.vx=dx/len*speed;r.vy=dy/len*speed;r.x=Math.max(28,Math.min(this.field.width-28,r.x+r.vx*dt));r.y=Math.max(28,Math.min(this.field.height-28,r.y+r.vy*dt));r.target=isStriker?'BALL':'BALL_SUPPORT';r.action=isStriker?(Math.hypot(dx,dy)<48?'CARRY':'PRESS'):'COVER';}
     const kicker=strikers.reduce((best,r)=>Math.hypot(r.x-b.x,r.y-b.y)<Math.hypot(best.x-b.x,best.y-b.y)?r:best,strikers[0]);
-    if(kicker&&this.kickCooldown<=0&&Math.hypot(kicker.x-b.x,kicker.y-b.y)<30){const attack=kicker.team==='blue'?-1:1;b.vx=(b.x-this.field.width/2)*.35+((this.random()-.5)*40);b.vy=attack*190;kicker.action='SHOOT';this.kickCooldown=.45;}
+    if(kicker&&this.kickCooldown<=0&&Math.hypot(kicker.x-b.x,kicker.y-b.y)<30){const attack=kicker.team==='blue'?-1:1;b.vx=(b.x-this.field.width/2)*.12+((this.random()-.5)*24);b.vy=attack*300;kicker.action='SHOOT';this.kickCooldown=1.15;}
     for(let i=0;i<this.state.robots.length;i++) for(let j=i+1;j<this.state.robots.length;j++){
       const a=this.state.robots[i],b2=this.state.robots[j],dx=b2.x-a.x,dy=b2.y-a.y,dist=Math.hypot(dx,dy)||1;
       if(dist<38){const push=(38-dist)/2,nx=dx/dist,ny=dy/dist;a.x=Math.max(28,Math.min(this.field.width-28,a.x-nx*push));a.y=Math.max(28,Math.min(this.field.height-28,a.y-ny*push));b2.x=Math.max(28,Math.min(this.field.width-28,b2.x+nx*push));b2.y=Math.max(28,Math.min(this.field.height-28,b2.y+ny*push));}

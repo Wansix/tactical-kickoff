@@ -37,10 +37,13 @@ describe('MatchSimulation', () => {
     const match = new MatchSimulation(1); match.swapComposition('blue');
     expect(match.state.robots.filter(r => r.team === 'blue')).toHaveLength(2);
     expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.role)).toEqual(['anchor','striker']);
+    expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.shape)).toEqual(['square','circle']);
   });
 
-  it('assigns distinct visual shapes to all four players', () => {
-    expect(new MatchSimulation().state.robots.map(r => r.shape)).toEqual(['circle','square','diamond','hex']);
+  it('uses the same shape for the same player slot on both teams', () => {
+    const robots = new MatchSimulation().state.robots;
+    expect(robots.filter(r => r.id.endsWith('-0')).map(r => r.shape)).toEqual(['circle','circle']);
+    expect(robots.filter(r => r.id.endsWith('-1')).map(r => r.shape)).toEqual(['square','square']);
   });
 
   it('keeps robots from occupying the same visual position during play', () => {
@@ -66,5 +69,27 @@ describe('MatchSimulation', () => {
     expect(movingFrames).toBeGreaterThan(90);
     expect(match.state.status).toBe('finished');
     expect(match.state.robots.some(r=>r.action!=='RESET')).toBe(true);
+  });
+
+  it('moves anchors in response to the changing ball position', () => {
+    const match = new MatchSimulation(42);
+    match.start();
+    for(let i=0;i<10*60;i++) match.tick(1/60);
+    const before = match.state.robots.filter(r=>r.role==='anchor').map(r=>({x:r.x,y:r.y}));
+    for(let i=0;i<20*60;i++) match.tick(1/60);
+    const after = match.state.robots.filter(r=>r.role==='anchor');
+    expect(after.some((r,i)=>Math.hypot(r.x-before[i].x,r.y-before[i].y)>10)).toBe(true);
+  });
+
+  it('creates real attacking progression instead of an endless striker pass loop', () => {
+    const match = new MatchSimulation(42);
+    match.start();
+    let minY=match.state.ball.y, maxY=match.state.ball.y;
+    for(let i=0;i<60*60;i++){
+      match.tick(1/60);
+      minY=Math.min(minY,match.state.ball.y); maxY=Math.max(maxY,match.state.ball.y);
+    }
+    expect(maxY-minY).toBeGreaterThan(300);
+    expect(match.state.score.blue+match.state.score.orange).toBeGreaterThan(0);
   });
 });
