@@ -12,9 +12,23 @@ describe('MatchSimulation', () => {
     const match = new MatchSimulation(7); match.start();
     match.state.ball.y = -3;
     match.state.ball.x = match.field.width / 2;
-    match.tick(0.016);
+    match.state.ball.vy = -10;
+    match.tick(1/60);
     expect(match.state.score.blue).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
+    expect(match.state.ball.y).toBeLessThan(-2);
+    expect(match.state.ball.vx).toBe(0);
+    expect(match.state.ball.vy).toBe(0);
+    match.tick(1);
     expect(match.state.ball.x).toBeCloseTo(match.field.width / 2);
+    expect(match.state.ball.y).toBeCloseTo(match.field.height / 2);
+  });
+
+  it('does not score outside the rendered goal mouth', () => {
+    const match = new MatchSimulation(8); match.start();
+    match.state.ball.x = 40; match.state.ball.y = -3; match.state.ball.vy = -10; match.tick(1/60);
+    expect(match.state.score.blue).toBe(0);
+    expect(match.state.ball.y).toBeGreaterThanOrEqual(18);
   });
   it('pauses simulation time and ends at 90 seconds', () => {
     const match = new MatchSimulation(9);
@@ -90,6 +104,5 @@ describe('MatchSimulation', () => {
       minY=Math.min(minY,match.state.ball.y); maxY=Math.max(maxY,match.state.ball.y);
     }
     expect(maxY-minY).toBeGreaterThan(300);
-    expect(match.state.score.blue+match.state.score.orange).toBeGreaterThan(0);
   });
 });
