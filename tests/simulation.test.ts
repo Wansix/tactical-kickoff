@@ -206,6 +206,16 @@ describe('MatchSimulation', () => {
     expect(frames.every(frame => Number.isFinite(frame.moveTargetX) && Number.isFinite(frame.moveTargetY))).toBe(true);
   });
 
+  it('tracks the ball for the legacy bulwark-backed Sweeper presentation role', () => {
+    const match = new MatchSimulation(5151);
+    match.start();
+    const sweeper = match.state.robots.find(robot => robot.archetype === 'bulwark')!;
+    for(let tick=0;tick<90;tick++) { match.state.ball.x=120; match.state.ball.y=260; match.tick(1/60); }
+    const dx=match.state.ball.x-sweeper.x,dy=match.state.ball.y-sweeper.y,len=Math.hypot(dx,dy);
+    expect(sweeper.role).toBe('bulwark');
+    expect(sweeper.facingX*dx+sweeper.facingY*dy).toBeGreaterThan(len*0.99);
+  });
+
   it('stages a Sweeper laterally before crossing to the own-goal side of the ball', () => {
     const match = new MatchSimulation(2027, {blue:['striker','striker'], orange:['sweeper','striker']});
     match.start();
