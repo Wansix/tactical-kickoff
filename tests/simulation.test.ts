@@ -28,8 +28,7 @@ describe('MatchSimulation', () => {
     expect(match.state.score.blue).toBe(1);
     expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
     expect(match.state.ball.y).toBeLessThan(-2);
-    expect(match.state.ball.vx).toBe(0);
-    expect(match.state.ball.vy).toBe(0);
+    expect(match.state.ball.vy).toBeLessThan(0);
     match.tick(1);
     expect(match.state.ball.x).toBeCloseTo(match.field.width / 2);
     expect(match.state.ball.y).toBeCloseTo(match.field.height / 2);

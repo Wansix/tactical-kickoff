@@ -47,7 +47,7 @@ function run(seed:number):MatchReport{
   for(let i=0;i<SECONDS*60;i++) match.tick(1/60);
   const frames=match.getTelemetry(); const events=frames.flatMap(f=>f.events);
   const goals=events.filter(e=>e.type==='goal');
-  const blueGoals=goals.filter(e=>e.y<0).length,orangeGoals=goals.filter(e=>e.y>match.field.height).length;
+  const blueGoals=goals.filter(e=>e.decision?.scoringTeam==='blue').length,orangeGoals=goals.filter(e=>e.decision?.scoringTeam==='orange').length;
   const signature=[match.state.score.blue,match.state.score.orange,events.filter(e=>e.type==='kick').length,events.filter(e=>e.type==='wall-bounce').length,Math.round(Math.max(...frames.map(f=>f.ball.x))-Math.min(...frames.map(f=>f.ball.x))),Math.round(Math.max(...frames.map(f=>f.ball.y))-Math.min(...frames.map(f=>f.ball.y)))].join(':');
   const firstKick=events.find(e=>e.type==='kick');
   const firstKickTeam=firstKick?.ids?.[0].startsWith('blue')?'blue':firstKick?.ids?.[0].startsWith('orange')?'orange':'none';

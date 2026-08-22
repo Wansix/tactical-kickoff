@@ -39,14 +39,16 @@ describe('physics-first simulation contract', () => {
 
   it('resets a goal stationary inside the kickoff state', () => {
     const match = new MatchSimulation(103);
-    match.start(); match.tick(5); match.state.score={blue:0,orange:0};
+    match.start(); match.tick(5); match.state.score={blue:0,orange:0}; (match as any).kickoffSafetyTimer=0;
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60);
     expect(match.state.score.blue).toBe(1);
-    expect(match.state.ball.y).toBeLessThan(-2);
-    expect(match.state.ball.vx).toBe(0);
-    expect(match.state.ball.vy).toBe(0);
+    expect(match.state.ball.y).toBeLessThan(-3);
+    expect(match.state.ball.vy).toBeLessThan(0);
     expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
+    const goalEvent=match.getEvents().find(event=>event.type==='goal');
+    expect(goalEvent?.y).toBe(match.state.ball.y);
+    expect(goalEvent?.decision?.scoringTeam).toBe('blue');
     expect(match.getEvents().some(event=>event.type==='goal')).toBe(true);
     match.tick(1);
     expect(match.state.ball).toMatchObject({x:270,y:match.field.height/2,vx:0,vy:0});
@@ -70,7 +72,26 @@ describe('physics-first simulation contract', () => {
     expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
   });
 
-  it('finishes only after a goal pause started on the final tick', () => {
+  it('allows a fast goal shot to enter the mouth instead of bouncing at the kickoff gate', () => {
+    const match=new MatchSimulation(113); match.start();
+    match.state.ball.x=match.field.width/2; match.state.ball.y=30; match.state.ball.vy=-500;
+    (match as any).kickoffFirstKickPending=false; (match as any).kickoffSafetyTimer=0;
+    match.tick(1/30);
+    expect(match.state.score.blue).toBe(1);
+    expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
+    expect(match.state.ball.y).toBeLessThan(18);
+    expect(match.state.ball.vy).toBeLessThan(0);
+  });
+  it('accepts shots through the widened goal mouth near both posts', () => {
+    for(const x of [175,365]){
+      const match=new MatchSimulation(114+x); match.start();
+      match.state.ball.x=x; match.state.ball.y=30; match.state.ball.vy=-500;
+      (match as any).kickoffFirstKickPending=false; (match as any).kickoffSafetyTimer=0;
+      match.tick(1/30);
+      expect(match.state.score.blue).toBe(1);
+      expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
+    }
+  });  it('finishes only after a goal pause started on the final tick', () => {
     const match=new MatchSimulation(106); match.start(); match.tick(5); match.state.score={blue:0,orange:0};
     match.state.elapsed=match.duration-1/60;
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
@@ -84,14 +105,14 @@ describe('physics-first simulation contract', () => {
   });
 
   it('does not allow manual pause to freeze the goal reset timer', () => {
-    const match=new MatchSimulation(107); match.start(); match.tick(5); match.state.score={blue:0,orange:0};
+    const match=new MatchSimulation(107); match.start(); match.tick(5); match.state.score={blue:0,orange:0}; (match as any).kickoffSafetyTimer=0;
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60);
     match.setPaused(true);
     expect(match.state.status).toBe('running');
     match.tick(1);
-    expect(match.state.ball).toMatchObject({x:270,y:match.field.height/2,vx:0,vy:0});
     expect(match.state.goalResetTimer).toBe(0);
+    expect(match.getEvents().some(event=>event.type==='kickoff')).toBe(true);
   });
 
   it('runs every archetype through the selectable 2v2 roster', () => {

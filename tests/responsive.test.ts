@@ -23,10 +23,11 @@ describe('responsive portrait presentation contract', () => {
     expect(css).toContain('width:min(100%');
   });
 
-  it('uses the same 160px width for the goal frame, bar, and goal mouth', () => {
-    expect(scene).toContain('g.moveTo(this.field.x+190,this.field.y)');
-    expect(scene).toContain('g.lineTo(this.field.x+350,this.field.y-80)');
-    expect(scene).toContain('this.add.rectangle(this.field.x+270,this.field.y-80,160,10');
+  it('uses the same 200px width for the goal frame, bar, and goal mouth', () => {
+    expect(scene).toContain('g.moveTo(this.field.x+170,this.field.y)');
+    expect(scene).toContain('g.lineTo(this.field.x+370,this.field.y-80)');
+    expect(scene).toContain('this.add.rectangle(this.field.x+270,this.field.y-80,200,12');
+    expect(scene).toContain('this.add.rectangle(this.field.x+170,this.field.y-40,50,80');
     expect(scene).not.toContain('strokeRect(this.field.x+190,this.field.y-1,160,82)');
   });
 
