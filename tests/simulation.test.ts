@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { MatchSimulation } from '../src/simulation/MatchSimulation';
 
 describe('MatchSimulation', () => {
+  it('supports an isolated Striker-vs-Striker 1v1 test scenario', () => {
+    const match = new MatchSimulation(31);
+    match.configureStriker1v1ForTest();
+    expect(match.state.robots).toHaveLength(2);
+    expect(match.state.robots.map(robot => robot.archetype)).toEqual(['striker','striker']);
+    expect(new Set(match.state.robots.map(robot => robot.team))).toEqual(new Set(['blue','orange']));
+    match.start();
+    for(let i=0;i<60*20;i++) match.tick(1/60);
+    expect(match.getEvents().some(event => event.type === 'robot-ball-collision')).toBe(true);
+    expect(match.getEvents().some(event => event.type === 'kick')).toBe(true);
+  });
   it('starts with exactly two robots per team and a deterministic seed', () => {
     const a = new MatchSimulation(42); const b = new MatchSimulation(42);
     expect(a.state.robots.filter(r => r.team === 'blue')).toHaveLength(2);
@@ -63,6 +74,8 @@ describe('MatchSimulation', () => {
     expect(match.state.robots.filter(r => r.team === 'blue')).toHaveLength(2);
     expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.role)).toEqual(['bulwark','striker']);
     expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.shape)).toEqual(['square','circle']);
+    expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.maxSpeed)).toEqual([163.8,241.5]);
+    expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.acceleration)).toEqual([630,1050]);
   });
 
   it('uses the same shape for the same player slot on both teams', () => {

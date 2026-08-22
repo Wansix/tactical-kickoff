@@ -17,4 +17,8 @@ const bindControls=(scene:GameScene)=>{
   speed.onchange=()=>scene.setMatchSpeed(Number(speed.value));
   controls.forEach((control)=>control.disabled=false);speed.disabled=false;
 };
-new Phaser.Game({type:Phaser.AUTO,width:580,height:1100,parent:'game',backgroundColor:'#08111d',scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:580,height:1100},scene:[new GameScene(bindControls)]});
+const scene=new GameScene(bindControls);
+new Phaser.Game({type:Phaser.AUTO,width:580,height:1100,parent:'game',backgroundColor:'#08111d',scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:580,height:1100},scene:[scene]});
+if(import.meta.env.DEV){
+  (window as Window & {__tacticalKickoffQA?:{configureStriker1v1:()=>void;forceGoal:()=>void;forceKick:()=>void;toggleDebug:()=>boolean;inspect:()=>unknown[];getState:()=>unknown;getTelemetry:()=>unknown[]}}).__tacticalKickoffQA={configureStriker1v1:()=>scene.configureStriker1v1Test(),forceGoal:()=>scene.forceGoalForTest(),forceKick:()=>scene.forceKickForTest(),toggleDebug:()=>scene.toggleDebug(),inspect:()=>scene.inspect(),getState:()=>scene.getState(),getTelemetry:()=>scene.getTelemetry()};
+}

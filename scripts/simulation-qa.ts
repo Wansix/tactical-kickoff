@@ -1,9 +1,10 @@
 import { MatchSimulation, type SimulationEvent, type TelemetryFrame, type Team } from '../src/simulation/MatchSimulation';
+import { detectAnomalies, type ScenarioRun } from '../src/simulation/SimulationQA';
 
 const SEEDS=Array.from({length:Number(process.env.QA_SEEDS??50)},(_,i)=>i+1);
 const SECONDS=Number(process.env.QA_SECONDS??60);
 
-type MatchReport={seed:number;goals:number;blueGoals:number;orangeGoals:number;kicks:number;firstKickTeam:'blue'|'orange'|'none';firstGoalTick:number|null;earlyGoals:number;blueKicks:number;orangeKicks:number;blueWrongDirectionKicks:number;orangeWrongDirectionKicks:number;goalPrecedingKickTeams:string[];wallBounces:number;signature:string;maxCollisionRun:number;maxDirectionReversalRun:number;robotRanges:Record<string,{x:number;y:number}>};
+type MatchReport={seed:number;goals:number;blueGoals:number;orangeGoals:number;kicks:number;firstKickTeam:'blue'|'orange'|'none';firstGoalTick:number|null;earlyGoals:number;blueKicks:number;orangeKicks:number;blueWrongDirectionKicks:number;orangeWrongDirectionKicks:number;goalPrecedingKickTeams:string[];wallBounces:number;signature:string;maxCollisionRun:number;maxDirectionReversalRun:number;maxCornerLowSpeedRun:number;anomalyCount:number;anomalyKinds:Record<string,number>;severeAnomalies:number;robotRanges:Record<string,{x:number;y:number}>};
 
 function collisionRun(events:SimulationEvent[]):number{
   const collisions=events.filter(e=>e.type==='robot-robot-collision'&&e.ids?.length===2).sort((a,b)=>a.tick-b.tick);
@@ -51,7 +52,11 @@ function run(seed:number):MatchReport{
   const kicks=events.filter(e=>e.type==='kick');
   const wrong=(team:Team)=>kicks.filter(e=>e.ids?.[0].startsWith(team)&&((team==='blue'&&e.vyAfter!>=0)||(team==='orange'&&e.vyAfter!<=0))).length;
   const goalPrecedingKickTeams=goals.map(goal=>kicks.filter(kick=>kick.tick<=goal.tick).at(-1)?.ids?.[0].split('-')[0]??'none');
-  return {seed,goals:goals.length,blueGoals,orangeGoals,kicks:kicks.length,firstKickTeam,firstGoalTick:goals[0]?.tick??null,earlyGoals:goals.filter(e=>e.tick<=5*60).length,blueKicks:kicks.filter(e=>e.ids?.[0].startsWith('blue')).length,orangeKicks:kicks.filter(e=>e.ids?.[0].startsWith('orange')).length,blueWrongDirectionKicks:wrong('blue'),orangeWrongDirectionKicks:wrong('orange'),goalPrecedingKickTeams,wallBounces:events.filter(e=>e.type==='wall-bounce').length,signature,maxCollisionRun:collisionRun(events),maxDirectionReversalRun:reversalRun(frames),robotRanges:rangeReport(frames)};
+  const corners=[{x:18,y:18},{x:match.field.width-18,y:18},{x:18,y:match.field.height-18},{x:match.field.width-18,y:match.field.height-18}]; let cornerRun=0,maxCornerLowSpeedRun=0;
+  for(const frame of frames){const nearCorner=corners.some(c=>Math.hypot(frame.ball.x-c.x,frame.ball.y-c.y)<75);const lowSpeed=Math.hypot(frame.ball.vx,frame.ball.vy)<20&&frame.goalResetTimer===0&&frame.elapsed>5;if(nearCorner&&lowSpeed)cornerRun++;else cornerRun=0;maxCornerLowSpeedRun=Math.max(maxCornerLowSpeedRun,cornerRun);}
+  const qaRun:ScenarioRun={scenario:{id:`MATCH_${seed}`,seed,durationTicks:SECONDS*60},state:match.snapshot(),events,telemetry:frames,replay:''};
+  const anomalies=detectAnomalies(qaRun); const severeAnomalies=anomalies.filter(anomaly=>['non-finite','out-of-bounds','speed-cap'].includes(anomaly.kind)).length; const anomalyKinds:Record<string,number>={}; for(const anomaly of anomalies) anomalyKinds[anomaly.kind]=(anomalyKinds[anomaly.kind]??0)+1;
+  return {seed,goals:goals.length,blueGoals,orangeGoals,kicks:kicks.length,firstKickTeam,firstGoalTick:goals[0]?.tick??null,earlyGoals:goals.filter(e=>e.tick<=5*60).length,blueKicks:kicks.filter(e=>e.ids?.[0].startsWith('blue')).length,orangeKicks:kicks.filter(e=>e.ids?.[0].startsWith('orange')).length,blueWrongDirectionKicks:wrong('blue'),orangeWrongDirectionKicks:wrong('orange'),goalPrecedingKickTeams,wallBounces:events.filter(e=>e.type==='wall-bounce').length,signature,maxCollisionRun:collisionRun(events),maxDirectionReversalRun:reversalRun(frames),maxCornerLowSpeedRun,anomalyCount:anomalies.length,anomalyKinds,severeAnomalies,robotRanges:rangeReport(frames)};
 }
 
 function defensiveScenario(team:Team){
@@ -91,7 +96,11 @@ const scoringSeedTotal=scoringSeedBlue+scoringSeedOrange;
 if(Math.max(scoringSeedBlue,scoringSeedOrange)>scoringSeedTotal*0.8) failures.push(`scoring seed concentration blue=${scoringSeedBlue} orange=${scoringSeedOrange}`);
 if(maxCollisionRun>3) failures.push(`max same-pair collision run ${maxCollisionRun}>3`);
 if(maxDirectionReversalRun>6) failures.push(`max direction reversal run ${maxDirectionReversalRun}>6`);
+const maxCornerLowSpeedRun=Math.max(...reports.map(r=>r.maxCornerLowSpeedRun));
+if(maxCornerLowSpeedRun>180) failures.push(`max corner low-speed run ${maxCornerLowSpeedRun}>180 ticks`);
+const anomalyCount=reports.reduce((n,r)=>n+r.anomalyCount,0),severeAnomalies=reports.reduce((n,r)=>n+r.severeAnomalies,0),anomalyKinds:Record<string,number>={}; for(const report of reports)for(const [kind,count] of Object.entries(report.anomalyKinds))anomalyKinds[kind]=(anomalyKinds[kind]??0)+count;
+if(severeAnomalies>0) failures.push(`severe simulation anomalies ${severeAnomalies}>0`);
 if(rangeFailures.length>0) failures.push(`low movement ranges ${rangeFailures.slice(0,5).join(',')}`);
-const result={matches:reports.length,uniqueSignatures:signatures.size,totalGoals,blueGoals,orangeGoals,goalConcentration,scoringSeedBlue,scoringSeedOrange,firstKickBlue,firstKickOrange,blueKicks,orangeKicks,blueWrongDirectionKicks,orangeWrongDirectionKicks,goalPrecedingKickTeams,earlyGoals,firstGoalTicks:reports.map(r=>({seed:r.seed,tick:r.firstGoalTick})).filter(r=>r.tick!==null).slice(0,10),defensiveBlue,defensiveOrange,maxCollisionRun,maxDirectionReversalRun,scoringTeams:[...scoringTeams],failures};
+const result={matches:reports.length,uniqueSignatures:signatures.size,totalGoals,blueGoals,orangeGoals,goalConcentration,scoringSeedBlue,scoringSeedOrange,firstKickBlue,firstKickOrange,blueKicks,orangeKicks,blueWrongDirectionKicks,orangeWrongDirectionKicks,goalPrecedingKickTeams,earlyGoals,firstGoalTicks:reports.map(r=>({seed:r.seed,tick:r.firstGoalTick})).filter(r=>r.tick!==null).slice(0,10),defensiveBlue,defensiveOrange,maxCollisionRun,maxDirectionReversalRun,maxCornerLowSpeedRun,anomalyCount,anomalyKinds,severeAnomalies,scoringTeams:[...scoringTeams],failures};
 console.log(`SIMULATION_QA_REPORT ${JSON.stringify(result)}`);
 if(failures.length) process.exit(1);

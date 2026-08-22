@@ -127,11 +127,10 @@ describe('physics-first simulation contract', () => {
     const match = new MatchSimulation(109); match.start();
     match.state.ball.x = 18; match.state.ball.y = 18;
     match.state.robots.forEach(robot => { robot.maxSpeed=0; robot.acceleration=0; });
-    for(let i=0;i<45;i++) match.tick(1/60);
-    for(let i=0;i<88;i++) match.tick(1/60);
+    for(let i=0;i<45+20;i++) match.tick(1/60);
     expect(match.state.ball.vx).toBe(0);
     expect(match.state.ball.vy).toBe(0);
-    match.tick(1/60);
+    for(let i=0;i<10;i++) match.tick(1/60);
     expect(Math.hypot(match.state.ball.vx,match.state.ball.vy)).toBeGreaterThan(0);
     expect(match.getEvents().filter(event=>event.type==='stuck-recovery')).toHaveLength(1);
   });
@@ -140,7 +139,7 @@ describe('physics-first simulation contract', () => {
     const match = new MatchSimulation(110); match.start();
     match.state.ball.x = 18; match.state.ball.y = 18;
     match.state.robots.forEach(robot => { robot.maxSpeed=0; robot.acceleration=0; });
-    for(let i=0;i<45+90;i++) match.tick(1/60);
+    for(let i=0;i<45+30;i++) match.tick(1/60);
     const recoveredVelocity = {...match.state.ball};
     match.tick(1/60);
     expect(match.state.ball.vx).not.toBe(recoveredVelocity.vx);
