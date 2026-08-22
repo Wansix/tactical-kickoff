@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { MatchSimulation } from '../src/simulation/MatchSimulation';
+import { configureStriker1v1 } from './fixtures';
 import { SimulationTestArena, detectAnomalies, findDecisionEvents, findKickCause, replayCheckpoint, replayDiff, replayEquivalent } from '../src/simulation/SimulationQA';
 
 describe('deterministic QA system', () => {
   it('runs a named scenario with fixed tick stepping and structured decisions', () => {
     const scenario={id:'STRIKER_1V1_TRACE',seed:31,durationTicks:180,robots:[]};
     const arena=new SimulationTestArena(scenario);
-    arena.simulation.configureStriker1v1ForTest();
+    configureStriker1v1(arena.simulation);
     arena.start(); arena.step(180);
     const run=arena.result();
     expect(run.telemetry).toHaveLength(180);

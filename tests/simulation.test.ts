@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { MatchSimulation } from '../src/simulation/MatchSimulation';
+import { configureStriker1v1 } from './fixtures';
 
 describe('MatchSimulation', () => {
   it('supports an isolated Striker-vs-Striker 1v1 test scenario', () => {
     const match = new MatchSimulation(31);
-    match.configureStriker1v1ForTest();
+    configureStriker1v1(match);
     expect(match.state.robots).toHaveLength(2);
     expect(match.state.robots.map(robot => robot.archetype)).toEqual(['striker','striker']);
     expect(new Set(match.state.robots.map(robot => robot.team))).toEqual(new Set(['blue','orange']));
@@ -112,12 +113,23 @@ describe('MatchSimulation', () => {
     expect(earlyGoals).toHaveLength(0);
   });
 
-  it('allows a goal during the initial window without a five-second scoring lock', () => {
+  it('blocks a goal during the initial five-second kickoff safety window', () => {
     const match=new MatchSimulation(113); match.start(); match.tick(1);
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
     match.tick(1/60);
+    expect(match.state.score.orange).toBe(0);
+    expect(match.state.goalResetTimer).toBe(0);
+  });
+
+  it('allows a goal during the post-goal kickoff window', () => {
+    const match=new MatchSimulation(114); match.start(); match.tick(5);
+    match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
+    match.tick(1/60);
     expect(match.state.score.orange).toBe(1);
-    expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
+    match.tick(1);
+    match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
+    match.tick(1/60);
+    expect(match.state.score.orange).toBe(2);
   });
 
   it('keeps robots from occupying the same visual position during play', () => {
@@ -171,6 +183,56 @@ describe('MatchSimulation', () => {
     for(let i=0;i<2*60;i++){orangeMatch.state.ball.y=200;orangeMatch.tick(1/60);}
     const orangeAfter=orangeMatch.state.robots.find(r=>r.id==='orange-1')!;
     expect(Math.hypot(orangeAfter.x-orangeBefore.x,orangeAfter.y-orangeBefore.y)).toBeGreaterThan(20);
+  });
+
+  it('runs the migration-safe Sweeper FSM with separated facing and backpedal telemetry', () => {
+    const match = new MatchSimulation(4242, {blue:['sweeper','striker'], orange:['striker','striker']});
+    match.start();
+    const sweeper = match.state.robots.find(robot => robot.id === 'blue-0')!;
+    sweeper.x = 270; sweeper.y = 520;
+    match.state.ball.x = 270; match.state.ball.y = 650; match.state.ball.vy = 120;
+    for (let tick = 0; tick < 180; tick++) match.tick(1/60);
+    const frames = match.getTelemetry().map(frame => frame.robots.find(robot => robot.id === sweeper.id)!);
+    expect(frames.some(frame => frame.sweeperState === 'INTERCEPT_STAGE')).toBe(true);
+    expect(frames.some(frame => frame.sweeperState === 'INTERCEPT')).toBe(true);
+    expect(frames.some(frame => frame.backpedal && frame.facingY < 0 && frame.vy > 0)).toBe(true);
+    expect(frames.every(frame => Number.isFinite(frame.moveTargetX) && Number.isFinite(frame.moveTargetY))).toBe(true);
+  });
+
+  it('applies a Sweeper clear only after same-tick physical contact and records return tick', () => {
+    const match = new MatchSimulation(4343, {blue:['sweeper','striker'], orange:['striker','striker']});
+    match.start();
+    (match as any).kickoffTimer = 0; (match as any).kickoffFirstKickPending = false;
+    const sweeper = match.state.robots.find(robot => robot.id === 'blue-0')!;
+    sweeper.x = 270; sweeper.y = 430; sweeper.facingX = 0; sweeper.facingY = -1;
+    sweeper.sweeperState = 'INTERCEPT';
+    match.state.ball.x = 270; match.state.ball.y = 400; match.state.ball.vx = 0; match.state.ball.vy = 80;
+    match.tick(1/60);
+    const clear = match.getEvents().find(event => event.type === 'kick' && event.ids?.includes(sweeper.id));
+    expect(clear).toBeDefined();
+    expect(clear!.tick).toBe(match.getEvents().find(event => event.type === 'robot-ball-collision' && event.ids?.includes(sweeper.id))!.tick);
+    expect(clear!.power).toBeGreaterThan(250);
+    expect(sweeper.clearImpulse).toBeGreaterThan(0);
+    for (let tick = 0; tick < 120; tick++) { match.state.ball.vx = 0; match.state.ball.vy = 0; match.tick(1/60); }
+    expect(match.getTelemetry().some(frame => frame.robots.find(robot => robot.id === sweeper.id)?.sweeperState === 'RETURN_TO_POST')).toBe(true);
+    expect(sweeper.returnTick).toBeGreaterThan(0);
+  });
+
+  it('keeps a wall-side striker from oscillating while pressing a wall-held ball', () => {
+    const match = new MatchSimulation(11); match.start();
+    for (let tick = 0; tick < 60 * 60; tick++) match.tick(1 / 60);
+    const frames = match.getTelemetry();
+    const robotId = 'orange-0'; let lastDx = 0; let lastDy = 0; let run = 0; let maximum = 0;
+    for (let index = 1; index < frames.length; index++) {
+      const previous = frames[index - 1].robots.find(robot => robot.id === robotId)!;
+      const current = frames[index].robots.find(robot => robot.id === robotId)!;
+      if (previous.action === 'RESET' || current.action === 'RESET' || previous.action === 'COVER' || current.action === 'COVER') { lastDx = 0; lastDy = 0; run = 0; continue; }
+      const dx = current.x - previous.x, dy = current.y - previous.y;
+      if (Math.hypot(dx, dy) < 2) continue;
+      if (Math.hypot(lastDx, lastDy) >= 2 && dx * lastDx + dy * lastDy < 0) run++; else run = 0;
+      maximum = Math.max(maximum, run); lastDx = dx; lastDy = dy;
+    }
+    expect(maximum).toBeLessThanOrEqual(6);
   });
 
   it('stages a striker that is between the ball and the opponent goal', () => {
