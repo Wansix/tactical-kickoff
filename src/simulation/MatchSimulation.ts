@@ -147,7 +147,7 @@ export class MatchSimulation {
     this.integrateBall(dt);
     this.resolveGoalOrWalls();
     this.resolveStuckBall();
-    for(const robot of this.state.robots){if(robot.archetype==='sweeper'){const dx=this.state.ball.x-robot.x,dy=this.state.ball.y-robot.y,len=Math.hypot(dx,dy)||1;robot.facingX=dx/len;robot.facingY=dy/len;}}
+    for(const robot of this.state.robots){if(robot.archetype==='bulwark'||robot.archetype==='sweeper'){const dx=this.state.ball.x-robot.x,dy=this.state.ball.y-robot.y,len=Math.hypot(dx,dy)||1;robot.facingX=dx/len;robot.facingY=dy/len;}}
     this.recordTelemetry();
     if(this.state.elapsed>=this.duration-1e-9&&this.state.goalResetTimer===0) this.state.status='finished';
   }
@@ -278,7 +278,7 @@ export class MatchSimulation {
       if(robot.archetype!=='bulwark'&&robot.archetype!=='sweeper'&&Math.hypot(robot.vx,robot.vy)>1){const facingLen=Math.hypot(robot.vx,robot.vy);robot.facingX=robot.vx/facingLen;robot.facingY=robot.vy/facingLen;}
       robot.x=this.clamp(robot.x+robot.vx*dt,28,this.field.width-28);
       robot.y=this.clamp(robot.y+robot.vy*dt,28,this.field.height-28);
-      if(robot.archetype==='sweeper'){const lookX=b.x-robot.x,lookY=b.y-robot.y,lookLen=Math.hypot(lookX,lookY)||1;robot.facingX=lookX/lookLen;robot.facingY=lookY/lookLen;}
+      if(robot.archetype==='bulwark'||robot.archetype==='sweeper'){const lookX=b.x-robot.x,lookY=b.y-robot.y,lookLen=Math.hypot(lookX,lookY)||1;robot.facingX=lookX/lookLen;robot.facingY=lookY/lookLen;}
       robot.backpedal=robot.facingX*robot.vx+robot.facingY*robot.vy<0;
       if(robot.archetype!=='bulwark'&&robot.archetype!=='sweeper') robot.target='BALL';
       robot.moveTargetX=targetX; robot.moveTargetY=targetY; robot.distanceToBall=Math.hypot(b.x-robot.x,b.y-robot.y); robot.distanceToTarget=len;
