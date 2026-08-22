@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MatchSimulation } from '../src/simulation/MatchSimulation';
+import { prepareStrikerKick } from './fixtures';
 
 describe('physics-first simulation contract', () => {
   it('starts with a stationary free ball', () => {
@@ -20,7 +21,7 @@ describe('physics-first simulation contract', () => {
 
   it('kicks hard and sends the ball away on striker contact', () => {
     const match=new MatchSimulation(104);
-    match.forceKickForTest();
+    prepareStrikerKick(match);
     const kick=match.getEvents().find(event=>event.type==='kick');
     expect(kick?.power).toBeGreaterThanOrEqual(300);
     expect(kick?.vyAfter).toBeLessThan(-250);
@@ -29,7 +30,7 @@ describe('physics-first simulation contract', () => {
   });
 
   it('debug kick mode draws and applies only the robot center line', () => {
-    const match=new MatchSimulation(105); match.setKickDebugLine(true); match.forceKickForTest();
+    const match=new MatchSimulation(105); match.setKickDebugLine(true); prepareStrikerKick(match);
     const kick=match.getEvents().find(event=>event.type==='kick');
     const robot=match.state.robots.find(candidate=>candidate.id===kick?.ids?.[0]);
     expect(kick?.direction?.x).toBe(robot?.facingX);

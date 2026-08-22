@@ -35,7 +35,7 @@ describe('responsive portrait presentation contract', () => {
     expect(main).toContain('경기 시작');
     expect(main).toContain('일시정지');
     expect(main).toContain('돌격대장');
-    expect(main).toContain('앵커');
+    expect(main).toContain('스위퍼');
     expect(scene).toContain('압박');
     expect(scene).toContain('커버');
   });

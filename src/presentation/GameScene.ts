@@ -37,10 +37,6 @@ export class GameScene extends Phaser.Scene {
 
   swap(team:Team):void { this.sim.swapComposition(team); for(const r of this.sim.state.robots.filter(robot=>robot.team===team)){ this.robotGraphics.get(r.id)?.destroy(); this.robotGraphics.delete(r.id); this.createRobot(r); } this.render(); }
   reset():void { this.sim=new MatchSimulation(2025);this.sim.setKickDebugLine(this.debugEnabled); for(const c of Array.from(this.robotGraphics.values()))c.destroy();this.robotGraphics.clear();for(const r of this.sim.state.robots)this.createRobot(r); this.debugText.setVisible(this.debugEnabled); this.render(); }
-  configureStriker1v1Test():void { this.sim=new MatchSimulation(2025); this.sim.setKickDebugLine(this.debugEnabled); this.sim.configureStriker1v1ForTest(); for(const c of Array.from(this.robotGraphics.values()))c.destroy();this.robotGraphics.clear();for(const r of this.sim.state.robots)this.createRobot(r); this.debugText.setVisible(this.debugEnabled); this.render(); }
-  forceKickForTest():void { this.sim.forceKickForTest(); this.render(); }
-  forceGoalForTest():void { this.sim.forceGoalForTest('blue'); this.sim.pauseForTest(); this.render(); }
-  advanceForTest(seconds:number):void { const steps=Math.max(1,Math.ceil(seconds*60)); for(let i=0;i<steps;i++){ this.sim.advanceForTest(1/60); if(this.sim.state.goalResetTimer===0&&i>0)break; } this.sim.setPaused(true); this.render(); }
   toggleDebug():boolean { this.debugEnabled=!this.debugEnabled; this.sim.setKickDebugLine(this.debugEnabled); this.debugText.setVisible(this.debugEnabled); this.render(); return this.debugEnabled; }
   inspect(){return this.sim.state.robots.map(robot=>robotDebug(robot));}
   getTelemetry(){return this.sim.getTelemetry();}
@@ -55,13 +51,13 @@ export class GameScene extends Phaser.Scene {
     body.setStrokeStyle(3,0x16232f);
     const nose=this.add.polygon(0,-25,[0,-8,-8,6,0,3,8,6],0xf6f3dc).setStrokeStyle(2,0x16232f);
     const labelY=r.team==='blue'?27:-42;
-    const label=this.add.text(-38,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'8px',color:'#d8f0ec',align:'center',fixedWidth:76});
+    const label=this.add.text(-48,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'11px',color:'#d8f0ec',align:'center',fixedWidth:96});
     const visual=this.add.container(0,0,[ring,body,nose]);
     visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);
     const c=this.add.container(this.field.x+r.x,this.field.y+r.y,[visual,label]);
     this.robotGraphics.set(r.id,c);
   }
-  private roleLabel(r:Robot):string { return r.archetype==='bulwark'?'앵커':r.archetype==='striker'?'돌격대장':r.archetype==='scout'?'정찰봇':r.archetype==='dribbler'?'운반봇':r.archetype==='cannon'?'포격봇':'청소봇'; }
+  private roleLabel(r:Robot):string { return r.archetype==='bulwark'||r.archetype==='sweeper'?'스위퍼':r.archetype==='striker'?'돌격대장':r.archetype==='scout'?'정찰봇':r.archetype==='dribbler'?'운반봇':'포격봇'; }
   private actionLabel(action:Robot['action']):string { return ({PRESS:'압박',COVER:'커버',CARRY:'운반',KICK:'킥',SHOOT:'강슛',RESET:'복귀'} as Record<Robot['action'],string>)[action]; }
   private render():void { const s=this.sim.state; this.kickDebugGraphics.clear(); if(this.debugEnabled){this.kickDebugGraphics.lineStyle(5,0xffe66d,1);for(const r of s.robots){const length=72;this.kickDebugGraphics.beginPath();this.kickDebugGraphics.moveTo(this.field.x+r.x,this.field.y+r.y);this.kickDebugGraphics.lineTo(this.field.x+r.x+r.facingX*length,this.field.y+r.y+r.facingY*length);this.kickDebugGraphics.strokePath();}}this.scoreText.setText(`점수  ${s.score.blue} : ${s.score.orange}`);const remain=Math.ceil(90-s.elapsed);this.timeText.setText(`${Math.floor(remain/60).toString().padStart(2,'0')}:${(remain%60).toString().padStart(2,'0')}`);const status=s.goalResetTimer>0?`골인 · ${s.goalResetTimer.toFixed(1)}초`:s.status==='ready'?'준비 · 시작':s.status==='running'?`경기 중 · ${this.speed.toFixed(1)}배`:s.status==='paused'?'일시정지':'경기 종료';this.statusText.setText(status);this.ball.setPosition(this.field.x+s.ball.x,this.field.y+s.ball.y);for(const r of s.robots){const c=this.robotGraphics.get(r.id);if(c){c.setPosition(this.field.x+r.x,this.field.y+r.y);const visual=c.list[0] as Phaser.GameObjects.Container;visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);const body=visual.list[1] as Phaser.GameObjects.Shape;const nose=visual.list[2] as Phaser.GameObjects.Shape;const flashing=r.lastKickAt!==undefined&&s.elapsed-r.lastKickAt<0.12;body.setFillStyle(flashing?0xffffff:r.team==='blue'?0x48d7e1:0xff9f43);nose.setFillStyle(flashing?0xffffff:0xf6f3dc);const label=c.list[1] as Phaser.GameObjects.Text;label.setText(`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`);}}if(this.debugEnabled)this.debugText.setText(this.inspect().map(d=>`${d.id} ${d.action} ${d.target}\nΔball ${d.distanceToBall.toFixed(0)} target(${d.targetPosition.x.toFixed(0)},${d.targetPosition.y.toFixed(0)})\n${d.reason}`).join('\n\n'));}
 }
