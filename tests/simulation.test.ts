@@ -113,12 +113,13 @@ describe('MatchSimulation', () => {
     expect(earlyGoals).toHaveLength(0);
   });
 
-  it('blocks a goal during the initial five-second kickoff safety window', () => {
+  it('allows a goal during the initial kickoff window without mouth bounce', () => {
     const match=new MatchSimulation(113); match.start(); match.tick(1);
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
     match.tick(1/60);
-    expect(match.state.score.orange).toBe(0);
-    expect(match.state.goalResetTimer).toBe(0);
+    expect(match.state.score.orange).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
+    expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
   });
 
   it('allows a goal during the post-goal kickoff window', () => {
@@ -197,6 +198,16 @@ describe('MatchSimulation', () => {
     expect(frames.some(frame => frame.sweeperState === 'INTERCEPT')).toBe(true);
     expect(frames.some(frame => frame.backpedal && frame.facingY < 0 && frame.vy > 0)).toBe(true);
     expect(frames.every(frame => Number.isFinite(frame.moveTargetX) && Number.isFinite(frame.moveTargetY))).toBe(true);
+  });
+
+  it('stages a Sweeper laterally before crossing to the own-goal side of the ball', () => {
+    const match = new MatchSimulation(2027, {blue:['striker','striker'], orange:['sweeper','striker']});
+    match.start();
+    const sweeper = match.state.robots.find(robot => robot.id === 'orange-0')!;
+    for (let tick = 0; tick < 120; tick++) { match.state.ball.x=230; match.state.ball.y=200; match.state.ball.vy=-120; match.tick(1/60); }
+    expect(sweeper.sweeperState).toBe('INTERCEPT');
+    expect(sweeper.y).toBeLessThan(match.state.ball.y);
+    expect(sweeper.moveTargetY).toBeLessThan(match.state.ball.y);
   });
 
   it('applies a Sweeper clear only after same-tick physical contact and records return tick', () => {

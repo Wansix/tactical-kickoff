@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { MatchSimulation, type Robot, type Team } from '../simulation/MatchSimulation';
+import { MatchSimulation, GOAL_GEOMETRY, type Robot, type Team } from '../simulation/MatchSimulation';
 import { robotDebug } from '../simulation/SimulationQA';
 
 export class GameScene extends Phaser.Scene {
@@ -21,11 +21,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#08111d');
     this.kickDebugGraphics=this.add.graphics().setDepth(9);
     this.sim.setKickDebugLine(this.debugEnabled);
-    const g=this.add.graphics(); g.fillStyle(0x102b37);g.fillRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x3c7180,1);g.strokeRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x5b98a1,.55);g.strokeRect(this.field.x,this.field.y+this.field.h/2-1,this.field.w,2);g.strokeCircle(this.field.x+this.field.w/2,this.field.y+this.field.h/2,78);g.beginPath();g.moveTo(this.field.x+170,this.field.y);g.lineTo(this.field.x+145,this.field.y-80);g.lineTo(this.field.x+395,this.field.y-80);g.lineTo(this.field.x+370,this.field.y);g.strokePath();g.beginPath();g.moveTo(this.field.x+170,this.field.y+this.field.h);g.lineTo(this.field.x+145,this.field.y+this.field.h+80);g.lineTo(this.field.x+395,this.field.y+this.field.h+80);g.lineTo(this.field.x+370,this.field.y+this.field.h);g.strokePath();
+    const g=this.add.graphics(); g.fillStyle(0x102b37);g.fillRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x3c7180,1);g.strokeRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x5b98a1,.55);g.strokeRect(this.field.x,this.field.y+this.field.h/2-1,this.field.w,2);g.strokeCircle(this.field.x+this.field.w/2,this.field.y+this.field.h/2,78); const topBarY=this.field.y-GOAL_GEOMETRY.depth;const bottomBarY=this.field.y+this.field.h+GOAL_GEOMETRY.depth;g.beginPath();g.moveTo(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y);g.lineTo(this.field.x+GOAL_GEOMETRY.barLeft,topBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.barRight,topBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.postRight,this.field.y);g.strokePath();g.beginPath();g.moveTo(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y+this.field.h);g.lineTo(this.field.x+GOAL_GEOMETRY.barLeft,bottomBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.barRight,bottomBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.postRight,this.field.y+this.field.h);g.strokePath();
     // Goals use the owning team's color: orange owns the top goal, blue owns the bottom goal.
-    this.add.rectangle(this.field.x+270,this.field.y-80,250,12,0xff9f43); this.add.rectangle(this.field.x+270,this.field.y+this.field.h+80,250,12,0x53d6df); this.add.rectangle(this.field.x+170,this.field.y-40,50,80,0xff9f43); this.add.rectangle(this.field.x+370,this.field.y-40,50,80,0xff9f43); this.add.rectangle(this.field.x+170,this.field.y+this.field.h+40,50,80,0x53d6df); this.add.rectangle(this.field.x+370,this.field.y+this.field.h+40,50,80,0x53d6df);
+    this.add.rectangle(this.field.x+270,topBarY,GOAL_GEOMETRY.barRight-GOAL_GEOMETRY.barLeft,12,0xff9f43); this.add.rectangle(this.field.x+270,bottomBarY,GOAL_GEOMETRY.barRight-GOAL_GEOMETRY.barLeft,12,0x53d6df); const postHeight=GOAL_GEOMETRY.depth; this.add.rectangle(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y-GOAL_GEOMETRY.depth/2,GOAL_GEOMETRY.postThickness,postHeight,0xff9f43); this.add.rectangle(this.field.x+GOAL_GEOMETRY.postRight,this.field.y-GOAL_GEOMETRY.depth/2,GOAL_GEOMETRY.postThickness,postHeight,0xff9f43); this.add.rectangle(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y+this.field.h+GOAL_GEOMETRY.depth/2,GOAL_GEOMETRY.postThickness,postHeight,0x53d6df); this.add.rectangle(this.field.x+GOAL_GEOMETRY.postRight,this.field.y+this.field.h+GOAL_GEOMETRY.depth/2,GOAL_GEOMETRY.postThickness,postHeight,0x53d6df);
     this.ball=this.add.circle(this.field.x+270,this.field.y+this.field.h/2,10,0xf6f3dc).setStrokeStyle(3,0xffd16b);
-    this.scoreText=this.add.text(70,20,'점수 0 : 0',{fontFamily:'monospace',fontSize:'18px',color:'#e6f7f5',fontStyle:'bold'}); this.timeText=this.add.text(420,30,'01:30',{fontFamily:'monospace',fontSize:'22px',color:'#9ad4d3'}); this.statusText=this.add.text(20,62,'준비 · 시작',{fontFamily:'monospace',fontSize:'12px',color:'#72a9af'}); this.debugText=this.add.text(285,120,'',{fontFamily:'monospace',fontSize:'8px',color:'#d8f0ec',backgroundColor:'#08111d',padding:{x:6,y:4},lineSpacing:2}).setDepth(10).setVisible(false);
+    this.scoreText=this.add.text(10,20,'점수 0 : 0',{fontFamily:'monospace',fontSize:'18px',color:'#e6f7f5',fontStyle:'bold'}); this.timeText=this.add.text(420,30,'01:30',{fontFamily:'monospace',fontSize:'22px',color:'#9ad4d3'}); this.statusText=this.add.text(430,62,'준비 · 시작',{fontFamily:'monospace',fontSize:'12px',color:'#72a9af'}); this.debugText=this.add.text(285,120,'',{fontFamily:'monospace',fontSize:'8px',color:'#d8f0ec',backgroundColor:'#08111d',padding:{x:6,y:4},lineSpacing:2}).setDepth(10).setVisible(false);
     for(const r of this.sim.state.robots) this.createRobot(r);
     this.onReady?.(this);
     this.onReady = undefined;
@@ -49,10 +49,11 @@ export class GameScene extends Phaser.Scene {
       : r.shape==='diamond' ? this.add.polygon(0,0,[0,-18,18,0,0,18,-18,0],color)
       : this.add.polygon(0,0,[0,-18,15,-9,15,9,0,18,-15,9,-15,-9],color);
     body.setStrokeStyle(3,0x16232f);
-    const nose=this.add.polygon(0,-25,[0,-8,-8,6,0,3,8,6],0xf6f3dc).setStrokeStyle(2,0x16232f);
+    const nose=this.add.polygon(0,-25,[0,-10,-9,8,9,8],0xf6f3dc).setStrokeStyle(2,0x16232f);
+    const noseCenterLine=this.add.line(0,-25,0,-8,0,6,0x4b6570,1).setLineWidth(1.5);
     const labelY=r.team==='blue'?27:-42;
     const label=this.add.text(-48,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'11px',color:'#d8f0ec',align:'center',fixedWidth:96});
-    const visual=this.add.container(0,0,[ring,body,nose]);
+    const visual=this.add.container(0,0,[ring,body,nose,noseCenterLine]);
     visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);
     const c=this.add.container(this.field.x+r.x,this.field.y+r.y,[visual,label]);
     this.robotGraphics.set(r.id,c);

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { GOAL_GEOMETRY } from '../src/simulation/MatchSimulation';
 
 const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
 const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
@@ -23,12 +24,13 @@ describe('responsive portrait presentation contract', () => {
     expect(css).toContain('width:min(100%');
   });
 
-  it('uses the same 200px width for the goal frame, bar, and goal mouth', () => {
-    expect(scene).toContain('g.moveTo(this.field.x+170,this.field.y)');
-    expect(scene).toContain('g.lineTo(this.field.x+145,this.field.y-80)');
-    expect(scene).toContain('this.add.rectangle(this.field.x+270,this.field.y-80,250,12');
-    expect(scene).toContain('this.add.rectangle(this.field.x+170,this.field.y-40,50,80');
-    expect(scene).not.toContain('strokeRect(this.field.x+190,this.field.y-1,160,82)');
+  it('uses one shared goal geometry contract for frame, bar, mouth, and net depth', () => {
+    expect(GOAL_GEOMETRY.mouthRight-GOAL_GEOMETRY.mouthLeft).toBe(150);
+    expect(GOAL_GEOMETRY.postRight-GOAL_GEOMETRY.postLeft).toBe(200);
+    expect(GOAL_GEOMETRY.barRight-GOAL_GEOMETRY.barLeft).toBe(250);
+    expect(GOAL_GEOMETRY.depth).toBe(105);
+    expect(scene).toContain('GOAL_GEOMETRY');
+    expect(scene).not.toContain('this.field.y-80');
   });
 
   it('exposes Korean controls and role descriptions', () => {
