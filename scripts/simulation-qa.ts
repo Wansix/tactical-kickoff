@@ -62,7 +62,7 @@ function run(seed:number):MatchReport{
 }
 
 function defensiveScenario(team:Team){
-  const match=new MatchSimulation(77); match.start();
+  const match=new MatchSimulation(77,{blue:['bulwark','bulwark'],orange:['bulwark','bulwark']}); match.start();
   match.state.ball.x=270; match.state.ball.y=team==='blue'?600:260; match.state.ball.vy=team==='blue'?80:-80;
   const defenderId=`${team}-1`;
   for(let i=0;i<90;i++) match.tick(1/60);

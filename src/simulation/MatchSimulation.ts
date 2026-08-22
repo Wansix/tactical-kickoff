@@ -173,7 +173,7 @@ export class MatchSimulation {
           if(wrongSide&&!lateralClear){
             targetX=b.x+side; targetY=b.y+attack*50; action='PRESS';
           }else{
-            targetX=b.x-b.vx*0.12; targetY=b.y-attack*approachOffset-b.vy*0.08; action=Math.hypot(targetX-robot.x,targetY-robot.y)<52?'CARRY':'PRESS';
+            targetX=b.x-b.vx*0.12; targetY=b.y-attack*approachOffset-b.vy*0.08; action='PRESS';
           }
           break;
         }
@@ -227,7 +227,7 @@ export class MatchSimulation {
       const distanceToBallBefore=Math.hypot(b.x-robot.x,b.y-robot.y);
       const velocityTowardTarget=robot.vx*dx+robot.vy*dy;
       const closingOnBall=(action==='PRESS')&&distanceToBallBefore<60&&(Math.hypot(robot.vx,robot.vy)<1||velocityTowardTarget>=-robot.maxSpeed*20);
-      const desiredSpeed=closingOnBall?robot.maxSpeed:Math.min(robot.maxSpeed,len*2.2);
+      const desiredSpeed=(robot.archetype==='striker'||robot.archetype==='bulwark')&&action==='PRESS'?robot.maxSpeed:(closingOnBall?robot.maxSpeed:Math.min(robot.maxSpeed,len*2.2));
       const desiredX=dx/len*desiredSpeed,desiredY=dy/len*desiredSpeed;
       const maxDelta=robot.acceleration*dt;
       robot.vx+=this.clamp(desiredX-robot.vx,-maxDelta,maxDelta);

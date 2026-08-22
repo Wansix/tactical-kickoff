@@ -85,7 +85,7 @@ describe('MatchSimulation', () => {
   });
 
   it('sends an anchor to intercept a ball moving toward its own goal', () => {
-    const blueMatch=new MatchSimulation(77); blueMatch.start();
+    const blueMatch=new MatchSimulation(77,{blue:['bulwark','bulwark'],orange:['bulwark','bulwark']}); blueMatch.start();
     const blueAnchor=blueMatch.state.robots.find(r=>r.id==='blue-1')!;
     blueMatch.state.ball.x=270; blueMatch.state.ball.y=600; blueMatch.state.ball.vy=80;
     const blueStart={x:blueAnchor.x,y:blueAnchor.y};
@@ -95,7 +95,7 @@ describe('MatchSimulation', () => {
     expect(Math.hypot(blueAnchor.x-blueStart.x,blueAnchor.y-blueStart.y)).toBeGreaterThan(40);
     expect(blueContacts.length).toBeGreaterThan(0);
 
-    const orangeMatch=new MatchSimulation(77); orangeMatch.start();
+    const orangeMatch=new MatchSimulation(77,{blue:['bulwark','bulwark'],orange:['bulwark','bulwark']}); orangeMatch.start();
     const orangeAnchor=orangeMatch.state.robots.find(r=>r.id==='orange-1')!;
     orangeMatch.state.ball.x=270; orangeMatch.state.ball.y=260; orangeMatch.state.ball.vy=-80;
     const orangeStart={x:orangeAnchor.x,y:orangeAnchor.y};
@@ -182,6 +182,18 @@ describe('MatchSimulation', () => {
     match.tick(1/60);
     expect(Math.abs(striker.vx)).toBeGreaterThan(0);
     expect(striker.action).toBe('PRESS');
+  });
+
+  it('keeps the striker at full approach speed before physical contact', () => {
+    const match=new MatchSimulation(42); match.start(); (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false;
+    const striker=match.state.robots.find(r=>r.id==='blue-0')!;
+    striker.x=270; striker.y=700; striker.vx=0; striker.vy=0;
+    match.state.ball.x=270; match.state.ball.y=430; match.state.ball.vx=0; match.state.ball.vy=0;
+    const speeds:number[]=[];
+    for(let i=0;i<30;i++){match.tick(1/60);speeds.push(Math.hypot(striker.vx,striker.vy));}
+    expect(striker.action).toBe('PRESS');
+    expect(Math.min(...speeds.slice(15))).toBeGreaterThan(striker.maxSpeed*0.95);
+    expect(match.getEvents().some(event=>event.type==='robot-ball-collision'&&event.ids?.includes(striker.id))).toBe(false);
   });
 
   it('keeps PRESS at max approach speed inside the near-ball envelope', () => {
