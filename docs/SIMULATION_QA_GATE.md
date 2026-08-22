@@ -87,3 +87,24 @@
 - goal reset 후 formation/속도/cooldown 회귀 테스트
 
 첫 킥 arbitration은 kickoff/reset 직후에만 허용하고, 일반 경기 중에는 공 소유권이나 팀 잠금을 사용하지 않는다. QA가 통과해도 브라우저에서 실제 canvas와 console error를 별도로 확인한다.
+
+## 2026-08-22 quality-loop cycle evidence
+
+- Worktree: feature branch `fix/gameplay-quality-loop`; pre-existing dirty edits were preserved. No commit/push was made.
+- Root causes reproduced before changes: goal sensor used `kickoffTimer` instead of the documented five-second `kickoffSafetyTimer`, producing 50/50 early goals; arrival controller's minimum closing speed caused seed 31 striker oscillation (24 consecutive vector reversals); repeated robot-ball recontacts damped play into a center deadlock.
+- Minimal changes: restore safety-timer goal gating; use vector-dot trajectory reversal detection that resets across goal-hold/RESET discontinuities; restore distance-based arrival speed; add per-robot 8/60 fixed-tick non-kick recontact cooldown; extend bounded post-kick guard to 0.18s; serialize the new cooldown in checkpoints.
+- Regression evidence: `npx vitest run tests/qa-system.test.ts -t 'does not oscillate'` was RED at `24 > 6` before the arrival-speed correction and GREEN after; final `npm test` was GREEN (49 tests).
+- Final 50-seed/60-second gate: PASS — unique signatures 48, goals 362 (blue 172/orange 190), goal concentration 0.525, first kicks 25/25, collision run 1, reversal run 3, corner low-speed run 45 ticks, anomalies 0, early goals 0, defensive contacts 1/1 with goals 0.
+- Final 100-seed/60-second gate: PASS in the serial run after the 8/60 cooldown — unique signatures 86, goals 718 (blue 341/orange 377), goal concentration 0.525, first kicks 50/50, collision run 1, reversal run 3, corner low-speed run 57 ticks, anomalies 0, early goals 0, defensive contacts 1/1 with goals 0. A prior intermediate run with the shorter cooldown had anomaly findings; it is not the release result.
+- Disposable telemetry: same seed/tick serialized trace comparison PASS. Representative 10-seed totals included wall bounces 4–28, robot-ball contacts 26–144, robot-robot contacts 0–13, kicks 7–32; observed ball x/y ranges materially exceeded center dead-zone. Seed 1 still exhibited a 484-tick `<20 px/s` interval, so numerical liveliness has remaining edge risk even though the current canonical gate does not fail it.
+- Browser: dev server default port 4173 was occupied; fresh server URL was `http://127.0.0.1:4174/`. Chrome headless generated 1x evidence (`/tmp/tactical-1x.png`, 306150 bytes) and DOM evidence (canvas present, Korean controls present). 4x capture timed out, and chronological visual contact/kick, corner escape, goal-entry/hold/reset, and console-clean evidence were not independently verified.
+- Verdict: numerical simulation PASS; gameplay anomaly gate PASS for the final serial 100-seed run but low-speed seed-1 edge risk remains; observability/replay partial PASS (same-seed and checkpoint tests exist, actual replay-engine/browser fixture not independently reviewed); browser visual UNVERIFIED. Release remains BLOCKED; do not commit, merge, or push. Next hypothesis: add a bounded low-speed/central-dwell gate and obtain independent Tech Lead/Game Director browser review before any candidate commit.
+
+## 2026-08-22 final near-ball approach cycle
+
+- Root cause fixed: distance-based arrival braking no longer applies to `PRESS` while the robot is within 60px of the ball and still moving toward its target; `CARRY` retains normal arrival braking to avoid overshoot/possession bias.
+- Decision telemetry now records `desiredSpeed`, and a deterministic regression test proves near-ball `PRESS` selects `robot.maxSpeed`.
+- Full gate: 50/50 tests, typecheck, build, `QA_SEEDS=50`, `QA_SEEDS=100`, and `git diff --check` PASS.
+- QA100: 702 goals, blue/orange 375/327, concentration 0.534, first kicks 50/50, reversal 4, collision run 1, early goals 0, severe anomalies 0; one non-severe `state-stuck` classification remains observable and corner low-speed max was 105 ticks.
+- Browser: live `5197` run showed near-ball `PRESS` telemetry, both teams scored, goal reset timer observed at 0.483s then returned to 0, console errors 0.
+- Independent release review must use this latest authoritative run; historical values above are retained as prior cycles only.

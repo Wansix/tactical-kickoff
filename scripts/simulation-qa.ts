@@ -20,12 +20,14 @@ function collisionRun(events:SimulationEvent[]):number{
 function reversalRun(frames:TelemetryFrame[]):number{
   const ids=frames[0]?.robots.map(r=>r.id)??[]; let best=0;
   for(const id of ids){
-    let lastSign=0,run=0;
+    let lastDx=0,lastDy=0,run=0;
     for(let i=1;i<frames.length;i++){
       const a=frames[i-1].robots.find(r=>r.id===id); const b=frames[i].robots.find(r=>r.id===id); if(!a||!b) continue;
-      const dx=b.x-a.x,dy=b.y-a.y; if(Math.hypot(dx,dy)<2) continue; const sign=Math.abs(dx)>=Math.abs(dy)?Math.sign(dx):Math.sign(dy);
-      if(sign!==0&&lastSign!==0&&sign!==lastSign) run+=1; else if(sign!==0) run=0;
-      best=Math.max(best,run); if(sign!==0) lastSign=sign;
+      if(frames[i-1].goalResetTimer>0||frames[i].goalResetTimer>0||a.action==='RESET'||b.action==='RESET'){lastDx=0;lastDy=0;run=0;continue;}
+      const dx=b.x-a.x,dy=b.y-a.y; const distance=Math.hypot(dx,dy); if(distance<2) continue;
+      const lastDistance=Math.hypot(lastDx,lastDy);
+      if(lastDistance>=2&&dx*lastDx+dy*lastDy<0) run+=1; else run=0;
+      best=Math.max(best,run); lastDx=dx; lastDy=dy;
     }
   }
   return best;

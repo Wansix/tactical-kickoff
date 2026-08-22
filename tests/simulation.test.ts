@@ -106,11 +106,19 @@ describe('MatchSimulation', () => {
     expect(orangeContacts.length).toBeGreaterThan(0);
   });
 
-  it('does not allow a kickoff to score during the initial safety window', () => {
+  it('does not allow a kickoff to score during the initial alignment window', () => {
     const match=new MatchSimulation(2025); match.start();
-    for(let i=0;i<5*60;i++)match.tick(1/60);
+    for(let i=0;i<45;i++)match.tick(1/60);
     const earlyGoals=match.getEvents().filter(event=>event.type==='goal');
     expect(earlyGoals).toHaveLength(0);
+  });
+
+  it('keeps both goal sensors closed during the initial five-second safety window', () => {
+    const match=new MatchSimulation(113); match.start(); match.tick(1);
+    match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
+    match.tick(1/60);
+    expect(match.state.score.orange).toBe(0);
+    expect(match.state.goalResetTimer).toBe(0);
   });
 
   it('keeps robots from occupying the same visual position during play', () => {
@@ -174,6 +182,15 @@ describe('MatchSimulation', () => {
     match.tick(1/60);
     expect(Math.abs(striker.vx)).toBeGreaterThan(0);
     expect(striker.action).toBe('PRESS');
+  });
+
+  it('keeps PRESS at max approach speed inside the near-ball envelope', () => {
+    const match=new MatchSimulation(778); match.start(); (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false;
+    const robot=match.state.robots.find(r=>r.id==='orange-0')!;
+    robot.x=270; robot.y=250; match.state.ball.x=270; match.state.ball.y=360; match.state.ball.vx=0; match.state.ball.vy=0;
+    for(let i=0;i<120;i++)match.tick(1/60);
+    const decisionEvents=match.getEvents().filter(event=>event.type==='decision') as any[];
+    expect(decisionEvents.some(event=>event.ids?.includes(robot.id)&&event.state==='PRESS'&&event.decision?.desiredSpeed===robot.maxSpeed)).toBe(true);
   });
 
   it('stages a bulwark that has crossed to the attack side of its own-half ball', () => {

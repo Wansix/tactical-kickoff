@@ -20,7 +20,7 @@ describe('physics-first simulation contract', () => {
 
   it('resets a goal stationary inside the kickoff state', () => {
     const match = new MatchSimulation(103);
-    match.start(); match.tick(5);
+    match.start(); match.tick(5); match.state.score={blue:0,orange:0};
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60);
     expect(match.state.score.blue).toBe(1);
@@ -43,7 +43,7 @@ describe('physics-first simulation contract', () => {
   });
 
   it('holds the scored ball inside the external goal frame for either team', () => {
-    const match = new MatchSimulation(105); match.start(); match.tick(5);
+    const match = new MatchSimulation(105); match.start(); match.tick(5); match.state.score={blue:0,orange:0};
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height+3; match.state.ball.vy=10;
     match.tick(1/60);
     expect(match.state.score.orange).toBe(1);
@@ -52,7 +52,7 @@ describe('physics-first simulation contract', () => {
   });
 
   it('finishes only after a goal pause started on the final tick', () => {
-    const match=new MatchSimulation(106); match.start(); match.tick(5);
+    const match=new MatchSimulation(106); match.start(); match.tick(5); match.state.score={blue:0,orange:0};
     match.state.elapsed=match.duration-1/60;
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60);
@@ -65,7 +65,7 @@ describe('physics-first simulation contract', () => {
   });
 
   it('does not allow manual pause to freeze the goal reset timer', () => {
-    const match=new MatchSimulation(107); match.start(); match.tick(5);
+    const match=new MatchSimulation(107); match.start(); match.tick(5); match.state.score={blue:0,orange:0};
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60);
     match.setPaused(true);
@@ -147,7 +147,7 @@ describe('physics-first simulation contract', () => {
   });
 
   it('allows a real goal immediately after a scored kickoff reset', () => {
-    const match = new MatchSimulation(112); match.start(); match.tick(5);
+    const match = new MatchSimulation(112); match.start(); match.tick(5); match.state.score={blue:0,orange:0};
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60); expect(match.state.score.blue).toBe(1);
     match.tick(1);
@@ -158,7 +158,7 @@ describe('physics-first simulation contract', () => {
     expect(match.getEvents().slice(beforeSecondGoalEvents).filter(event=>event.type==='wall-bounce'&&event.y<=18)).toHaveLength(0);
   });
   it('keeps the goal sensor separate from the chamfered wall', () => {
-    const match = new MatchSimulation(111); match.start(); match.tick(5);
+    const match = new MatchSimulation(111); match.start(); match.tick(5); match.state.score={blue:0,orange:0};
     match.state.ball.x = match.field.width/2; match.state.ball.y = 17;
     match.state.ball.vy = -10;
     match.tick(1/60);

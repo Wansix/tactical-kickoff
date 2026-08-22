@@ -46,9 +46,26 @@ describe('deterministic QA system', () => {
     expect(replay.telemetry).toEqual(original.getTelemetry());
   });
 
+  it('does not oscillate a striker at an arrival target in a long deterministic run', () => {
+    const match=new MatchSimulation(31); match.start();
+    let lastDx=0,lastDy=0,run=0,best=0;
+    for(let tick=0;tick<60*60;tick++){
+      match.tick(1/60);
+      const frames=match.getTelemetry(); const previous=frames.at(-2); const current=frames.at(-1);
+      const a=previous?.robots.find(robot=>robot.id==='orange-0'); const b=current?.robots.find(robot=>robot.id==='orange-0');
+      if(!a||!b||previous!.goalResetTimer>0||current!.goalResetTimer>0||a.action==='RESET'||b.action==='RESET'){lastDx=0;lastDy=0;run=0;continue;}
+      const dx=b.x-a.x,dy=b.y-a.y;if(Math.hypot(dx,dy)<2)continue;
+      if(Math.hypot(lastDx,lastDy)>=2&&dx*lastDx+dy*lastDy<0)run++;else run=0;best=Math.max(best,run);lastDx=dx;lastDy=dy;
+    }
+    expect(best).toBeLessThanOrEqual(6);
+  });
+
   it('fires side-wall recovery once until the ball leaves the wall zone', () => {
     const match=new MatchSimulation(23); match.start(); match.state.ball.x=20; match.state.ball.y=430; match.state.ball.vx=0; match.state.ball.vy=0;
-    for(let i=0;i<240;i++){if(i>60)match.state.ball.x=20;match.tick(1/60);}
+    for(let i=0;i<240;i++){
+      for(const robot of match.state.robots){robot.x=270;robot.y=robot.team==='blue'?760:100;robot.vx=0;robot.vy=0;}
+      if(i>60)match.state.ball.x=20;match.tick(1/60);
+    }
     expect(match.getEvents().filter(event=>event.type==='stuck-recovery'&&event.reason?.includes('side-wall')).length).toBe(1);
   });
 
