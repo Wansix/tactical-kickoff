@@ -42,14 +42,14 @@ const GOAL_LEFT=190;
 const GOAL_RIGHT=350;
 const BALL_RADIUS=10;
 const ROBOT_RADIUS=20;
-const MAX_SPEED=520;
+const MAX_SPEED=1040;
 const DAMPING=0.82;
 const ROBOT_BALL_RESTITUTION=1.85;
 const WALL_BOUNCE=0.75;
-const KICK_POWER=300;
-const CANNON_KICK_POWER=315;
-const ROBOT_SPEED_MULT=1.05;
-const ROBOT_ACCEL_MULT=1.05;
+const KICK_POWER=600;
+const CANNON_KICK_POWER=630;
+const ROBOT_SPEED_MULT=2;
+const ROBOT_ACCEL_MULT=2;
 
 export class MatchSimulation {
   readonly field={width:540,height:860}; readonly duration=90; readonly seed:number; private paused=false; private accumulator=0; private tickIndex=0;
@@ -330,8 +330,8 @@ export class MatchSimulation {
 
   private resolveGoalOrWalls(){
     const b=this.state.ball; const inGoalMouth=b.x>=GOAL_LEFT&&b.x<=GOAL_RIGHT;
-    if(this.kickoffSafetyTimer<=0&&b.y<=18&&b.vy<0&&inGoalMouth){this.state.score.blue++;this.beginGoalReset('blue');return;}
-    if(this.kickoffSafetyTimer<=0&&b.y>=this.field.height-18&&b.vy>0&&inGoalMouth){this.state.score.orange++;this.beginGoalReset('orange');return;}
+    if((this.kickoffSafetyTimer<=0||this.state.score.blue+this.state.score.orange>0)&&b.y<=18&&b.vy<0&&inGoalMouth){this.state.score.blue++;this.beginGoalReset('blue');return;}
+    if((this.kickoffSafetyTimer<=0||this.state.score.blue+this.state.score.orange>0)&&b.y>=this.field.height-18&&b.vy>0&&inGoalMouth){this.state.score.orange++;this.beginGoalReset('orange');return;}
     if(b.x>20)this.wallContact.left=false;
     if(b.x<this.field.width-20)this.wallContact.right=false;
     if(b.y>20)this.wallContact.top=false;

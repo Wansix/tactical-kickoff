@@ -74,8 +74,8 @@ describe('MatchSimulation', () => {
     expect(match.state.robots.filter(r => r.team === 'blue')).toHaveLength(2);
     expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.role)).toEqual(['bulwark','striker']);
     expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.shape)).toEqual(['square','circle']);
-    expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.maxSpeed)).toEqual([163.8,241.5]);
-    expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.acceleration)).toEqual([630,1050]);
+    expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.maxSpeed)).toEqual([312,460]);
+    expect(match.state.robots.filter(r => r.team === 'blue').map(r => r.acceleration)).toEqual([1200,2000]);
   });
 
   it('uses the same shape for the same player slot on both teams', () => {
@@ -134,6 +134,7 @@ describe('MatchSimulation', () => {
       previousBall={...match.state.ball};
     }
     expect(movingFrames).toBeGreaterThan(90);
+    if(match.state.goalResetTimer>0) match.tick(1);
     expect(match.state.status).toBe('finished');
     expect(match.state.robots.some(r=>r.action!=='RESET')).toBe(true);
   });

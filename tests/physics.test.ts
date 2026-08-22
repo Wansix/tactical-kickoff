@@ -146,6 +146,17 @@ describe('physics-first simulation contract', () => {
     expect(match.getEvents().filter(event=>event.type==='stuck-recovery')).toHaveLength(1);
   });
 
+  it('allows a real goal immediately after a scored kickoff reset', () => {
+    const match = new MatchSimulation(112); match.start(); match.tick(5);
+    match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
+    match.tick(1/60); expect(match.state.score.blue).toBe(1);
+    match.tick(1);
+    const beforeSecondGoalEvents=match.getEvents().length;
+    match.state.ball.y=17; match.state.ball.vy=-10;
+    match.tick(1/60);
+    expect(match.state.score.blue).toBe(2);
+    expect(match.getEvents().slice(beforeSecondGoalEvents).filter(event=>event.type==='wall-bounce'&&event.y<=18)).toHaveLength(0);
+  });
   it('keeps the goal sensor separate from the chamfered wall', () => {
     const match = new MatchSimulation(111); match.start(); match.tick(5);
     match.state.ball.x = match.field.width/2; match.state.ball.y = 17;
