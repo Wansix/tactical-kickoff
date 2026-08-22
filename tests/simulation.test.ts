@@ -184,6 +184,35 @@ describe('MatchSimulation', () => {
     expect(striker.action).toBe('PRESS');
   });
 
+  it('deflects a symmetric central kickoff collision deterministically', () => {
+    const run=()=>{const match=new MatchSimulation(1); match.start(); for(let tick=0;tick<60;tick++) match.tick(1/60); return match;};
+    const first=run(),second=run();
+    const recovery=first.getEvents().find(event=>event.type==='stuck-recovery'&&event.reason==='deterministic central kickoff deflection');
+    expect(recovery).toBeDefined();
+    expect(Math.hypot(first.state.ball.vx,first.state.ball.vy)).toBeGreaterThan(200);
+    expect(JSON.stringify(first.state)).toBe(JSON.stringify(second.state));
+    expect(first.getEvents().map(event=>[event.type,event.tick,event.reason,event.impulse])).toEqual(second.getEvents().map(event=>[event.type,event.tick,event.reason,event.impulse]));
+  });
+
+  it('preserves central deflection cooldown across checkpoint restore', () => {
+    const original=new MatchSimulation(1); original.start();
+    for(let tick=0;tick<41;tick++) original.tick(1/60);
+    const checkpoint=original.checkpoint();
+    expect((checkpoint as any).centralDeflectionCooldown).toBeGreaterThan(0);
+    const restored=new MatchSimulation(1); restored.restoreCheckpoint(checkpoint);
+    expect((restored as any).centralDeflectionCooldown).toBe((checkpoint as any).centralDeflectionCooldown);
+    for(let tick=0;tick<30;tick++){original.tick(1/60);restored.tick(1/60);}
+    expect(JSON.stringify(restored.state)).toBe(JSON.stringify(original.state));
+    expect(JSON.stringify(restored.getEvents())).toBe(JSON.stringify(original.getEvents()));
+  });
+
+  it('does not use central kickoff deflection after the kickoff window', () => {
+    const match=new MatchSimulation(1); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+    for(let tick=0;tick<150;tick++) match.tick(1/60);
+    expect(match.getEvents().some(event=>event.reason==='deterministic central kickoff deflection')).toBe(false);
+  });
+
   it('keeps the striker at full approach speed before physical contact', () => {
     const match=new MatchSimulation(42); match.start(); (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false;
     const striker=match.state.robots.find(r=>r.id==='blue-0')!;

@@ -36,7 +36,8 @@ export class GameScene extends Phaser.Scene {
   reset():void { this.sim=new MatchSimulation(2025); for(const c of Array.from(this.robotGraphics.values()))c.destroy();this.robotGraphics.clear();for(const r of this.sim.state.robots)this.createRobot(r); }
   configureStriker1v1Test():void { this.sim=new MatchSimulation(2025); this.sim.configureStriker1v1ForTest(); for(const c of Array.from(this.robotGraphics.values()))c.destroy();this.robotGraphics.clear();for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
   forceKickForTest():void { this.sim.forceKickForTest(); this.render(); }
-  forceGoalForTest():void { this.sim.forceGoalForTest('blue'); this.render(); }
+  forceGoalForTest():void { this.sim.forceGoalForTest('blue'); this.sim.setPaused(true); this.render(); }
+  advanceForTest(seconds:number):void { const steps=Math.max(1,Math.ceil(seconds*60)); for(let i=0;i<steps;i++){ this.sim.advanceForTest(1/60); if(this.sim.state.goalResetTimer===0&&i>0)break; } this.sim.setPaused(true); this.render(); }
   toggleDebug():boolean { this.debugEnabled=!this.debugEnabled; this.debugText.setVisible(this.debugEnabled); this.render(); return this.debugEnabled; }
   inspect(){return this.sim.state.robots.map(robot=>robotDebug(robot));}
   getTelemetry(){return this.sim.getTelemetry();}
