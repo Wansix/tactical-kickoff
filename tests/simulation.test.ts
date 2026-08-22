@@ -113,13 +113,13 @@ describe('MatchSimulation', () => {
     expect(earlyGoals).toHaveLength(0);
   });
 
-  it('blocks a forced goal during the initial five-second safety window', () => {
+  it('allows a forced goal during the initial kickoff window without mouth bounce', () => {
     const match=new MatchSimulation(113); match.start(); match.tick(1);
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
     match.tick(1/60);
-    expect(match.state.score.orange).toBe(0);
-    expect(match.state.goalResetTimer).toBe(0);
-    expect(match.getEvents().filter(event=>event.type==='goal')).toHaveLength(0);
+    expect(match.state.score.orange).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
+    expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
   });
 
   it('allows a goal during the post-goal kickoff window', () => {
