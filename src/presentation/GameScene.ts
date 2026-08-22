@@ -49,8 +49,8 @@ export class GameScene extends Phaser.Scene {
       : r.shape==='diamond' ? this.add.polygon(0,0,[0,-18,18,0,0,18,-18,0],color)
       : this.add.polygon(0,0,[0,-18,15,-9,15,9,0,18,-15,9,-15,-9],color);
     body.setStrokeStyle(3,0x16232f);
-    const nose=this.add.polygon(0,-25,[0,-10,-9,8,9,8],0xf6f3dc).setStrokeStyle(2,0x16232f);
-    const noseCenterLine=this.add.line(0,-25,0,-8,0,6,0x4b6570,1).setLineWidth(1.5);
+    const nose=this.add.triangle(0,-25,0,-10,-9,8,9,8,0xf6f3dc,1).setStrokeStyle(2,0x16232f);
+    const noseCenterLine=this.add.line(0,-25,0,-10,0,8,0x182a36,1).setLineWidth(1.5);
     const labelY=r.team==='blue'?27:-42;
     const label=this.add.text(-48,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'11px',color:'#d8f0ec',align:'center',fixedWidth:96});
     const visual=this.add.container(0,0,[ring,body,nose,noseCenterLine]);

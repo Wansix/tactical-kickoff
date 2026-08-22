@@ -32,7 +32,7 @@ describe('goal mouth geometry contract',()=>{
     expect(match.state.goalResetTimer).toBeGreaterThan(0);
     for(let i=0;i<30;i++)match.tick(1/60);
     expect(match.state.goalResetTimer).toBeGreaterThan(0);
-    expect(match.state.ball.y).toBeLessThanOrEqual(-95);
+    expect(match.state.ball.y).toBe(-95);
     expect(match.state.ball.vy).toBe(0);
   });
 });
