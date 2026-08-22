@@ -18,6 +18,25 @@ describe('physics-first simulation contract', () => {
     expect(contacts.some(event=>(event.impulse??0)>0&&event.vxAfter!==event.vxBefore||event.vyAfter!==event.vyBefore)).toBe(true);
   });
 
+  it('kicks hard and sends the ball away on striker contact', () => {
+    const match=new MatchSimulation(104);
+    match.forceKickForTest();
+    const kick=match.getEvents().find(event=>event.type==='kick');
+    expect(kick?.power).toBeGreaterThanOrEqual(300);
+    expect(kick?.vyAfter).toBeLessThan(-250);
+    match.tick(1/30);
+    expect(match.state.ball.y).toBeLessThan(400);
+  });
+
+  it('escapes each physical corner with one bounded recovery', () => {
+    for(const [index,corner] of [[18,18],[522,18],[18,882],[522,882]].entries()){
+      const match=new MatchSimulation(200+index); match.start(); (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=0;
+      match.state.ball.x=corner[0]; match.state.ball.y=corner[1]; match.state.ball.vx=0; match.state.ball.vy=0;
+      for(let tick=0;tick<60;tick++) match.tick(1/60);
+      expect(match.getEvents().filter(event=>event.type==='stuck-recovery')).toHaveLength(1);
+    }
+  });
+
   it('resets a goal stationary inside the kickoff state', () => {
     const match = new MatchSimulation(103);
     match.start(); match.tick(5); match.state.score={blue:0,orange:0};
@@ -127,10 +146,7 @@ describe('physics-first simulation contract', () => {
     const match = new MatchSimulation(109); match.start();
     match.state.ball.x = 18; match.state.ball.y = 18;
     match.state.robots.forEach(robot => { robot.maxSpeed=0; robot.acceleration=0; });
-    for(let i=0;i<45+20;i++) match.tick(1/60);
-    expect(match.state.ball.vx).toBe(0);
-    expect(match.state.ball.vy).toBe(0);
-    for(let i=0;i<10;i++) match.tick(1/60);
+    for(let i=0;i<64;i++) match.tick(1/60);
     expect(Math.hypot(match.state.ball.vx,match.state.ball.vy)).toBeGreaterThan(0);
     expect(match.getEvents().filter(event=>event.type==='stuck-recovery')).toHaveLength(1);
   });

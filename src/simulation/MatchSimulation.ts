@@ -295,7 +295,7 @@ export class MatchSimulation {
         this.ballContactCooldown[robot.id]=8/60;
       }
       const forward=robot.facingX*nx+robot.facingY*ny;
-      if((robot.archetype==='striker'||robot.archetype==='cannon')&&dist<=32&&forward>=Math.cos(35*Math.PI/180)) candidates.push({robot,nx,ny,distance:dist,score:forward-dist/100});
+      if((robot.archetype==='striker'||robot.archetype==='cannon')&&dist<=32&&((forward>=Math.cos(35*Math.PI/180))||(robot.archetype==='striker'&&robot.action==='PRESS'))) candidates.push({robot,nx,ny,distance:dist,score:forward-dist/100});
     }
     candidates.sort((a,b2)=>b2.score-a.score||a.robot.id.localeCompare(b2.robot.id));
     if(candidates[0])this.tryKick(candidates[0].robot,candidates[0].nx,candidates[0].ny);
@@ -306,7 +306,7 @@ export class MatchSimulation {
     if((robot.archetype!=='striker'&&robot.archetype!=='cannon')||robot.kickCooldown>0||robot.kickLockout>0||this.kickoffTimer>0||this.ballKickInvuln>0) return;
     if(this.kickoffFirstKickPending&&robot.team!==this.kickoffPreferredTeam)return;
     const forward=robot.facingX*nx+robot.facingY*ny;
-    if(forward<Math.cos(35*Math.PI/180)||Math.hypot(b.x-robot.x,b.y-robot.y)>32||this.kickBurstCount>=3) return;
+    if(forward<Math.cos(35*Math.PI/180)&&!(robot.archetype==='striker'&&robot.action==='PRESS')||Math.hypot(b.x-robot.x,b.y-robot.y)>32||this.kickBurstCount>=3) return;
     if(this.lastKickTeam===robot.team&&this.state.elapsed-this.lastKickElapsed<0.24&&Math.hypot(b.x-this.lastKickX,b.y-this.lastKickY)<40)return;
     const attackY=robot.team==='blue'?-1:1;
     const goalX=this.field.width/2;
@@ -374,12 +374,13 @@ export class MatchSimulation {
     const corner=corners.reduce<{x:number;y:number;nx:number;ny:number;distance:number}|null>((best,current)=>{const distance=Math.hypot(b.x-current.x,b.y-current.y);return !best||distance<best.distance?{...current,distance}:best;},null);
     const speed=Math.hypot(b.vx,b.vy);
     if(corner&&corner.distance<75&&speed<40&&movement<1) this.cornerStuckTicks++; else this.cornerStuckTicks=0;
-    if(this.cornerStuckTicks>=30&&this.cornerRecoveryCooldown<=0&&corner){
+    if(this.cornerStuckTicks>=20&&this.cornerRecoveryCooldown<=0&&corner){
       const len=Math.hypot(corner.nx,corner.ny);
-      b.x=this.clamp(b.x+corner.nx*8,18,this.field.width-18); b.y=this.clamp(b.y+corner.ny*8,18,this.field.height-18);
-      b.vx=corner.nx/len*180; b.vy=corner.ny/len*180;
+      b.x=this.clamp(b.x+corner.nx*10,18,this.field.width-18); b.y=this.clamp(b.y+corner.ny*10,18,this.field.height-18);
+      b.vx=corner.nx/len*260; b.vy=corner.ny/len*260;
+      this.wallContact={left:false,right:false,top:false,bottom:false};
       this.cornerRecoveryCooldown=0.75; this.cornerStuckTicks=0;
-      this.recordEvent({type:'stuck-recovery',reason:'corner trap for 30 fixed ticks',x:b.x,y:b.y,impulse:180});
+      this.recordEvent({type:'stuck-recovery',reason:'corner trap for 20 fixed ticks',x:b.x,y:b.y,impulse:260});
       return;
     }
     const nearSideWall=b.x<=34||b.x>=this.field.width-34;
