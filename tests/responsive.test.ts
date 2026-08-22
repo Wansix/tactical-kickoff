@@ -39,4 +39,19 @@ describe('responsive portrait presentation contract', () => {
     expect(scene).toContain('압박');
     expect(scene).toContain('커버');
   });
+
+  it('projects robot role, team, and facing direction into presentation', () => {
+    expect(scene).toContain('facingX');
+    expect(scene).toContain('facingY');
+    expect(scene).toContain('Math.atan2');
+    expect(scene).toContain('nose');
+    expect(scene).toContain('0x16232f');
+  });
+
+  it('keeps long kick guidelines debug-only across scene lifecycle resets', () => {
+    expect(scene).toContain('private debugEnabled=false');
+    expect(scene).toContain('this.sim.setKickDebugLine(this.debugEnabled)');
+    expect(scene).not.toContain('this.sim.setKickDebugLine(true)');
+    expect(scene).toContain('if(this.debugEnabled){this.kickDebugGraphics.lineStyle');
+  });
 });
