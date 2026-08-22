@@ -1,4 +1,4 @@
-import { MatchSimulation, type Action, type MatchState, type Robot, type SimulationEvent, type Team, type TelemetryFrame } from './MatchSimulation';
+import { MatchSimulation, GOAL_GEOMETRY, type Action, type MatchState, type Robot, type SimulationEvent, type Team, type TelemetryFrame } from './MatchSimulation';
 
 export interface ScenarioSpec {
   id:string;
@@ -53,7 +53,7 @@ export function detectAnomalies(run:ScenarioRun,field={width:540,height:860},win
   const anomalies:SimulationAnomaly[]=[]; const frames=run.telemetry;
   for(const frame of frames){
     const ball=frame.ball; if(!Number.isFinite(ball.x)||!Number.isFinite(ball.y)||!Number.isFinite(ball.vx)||!Number.isFinite(ball.vy)) anomalies.push({kind:'non-finite',tick:frame.tick,elapsed:frame.elapsed,message:'ball contains non-finite value',details:{ball}});
-    const goalNetDepth=frame.goalResetTimer>0?80:60;
+    const goalNetDepth=frame.goalResetTimer>0?GOAL_GEOMETRY.depth:60;
     if(ball.x<0||ball.x>field.width||ball.y<-goalNetDepth||ball.y>field.height+goalNetDepth) anomalies.push({kind:'out-of-bounds',tick:frame.tick,elapsed:frame.elapsed,message:'ball outside allowed bounds',details:{x:ball.x,y:ball.y,goalResetTimer:frame.goalResetTimer}});
     for(const robot of frame.robots){
       const speed=Math.hypot(robot.vx,robot.vy); if(![robot.x,robot.y,robot.vx,robot.vy].every(Number.isFinite)) anomalies.push({kind:'non-finite',tick:frame.tick,elapsed:frame.elapsed,robotId:robot.id,message:'robot contains non-finite value',details:{x:robot.x,y:robot.y,vx:robot.vx,vy:robot.vy}});
