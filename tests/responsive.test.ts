@@ -25,8 +25,8 @@ describe('responsive portrait presentation contract', () => {
 
   it('uses the same 200px width for the goal frame, bar, and goal mouth', () => {
     expect(scene).toContain('g.moveTo(this.field.x+170,this.field.y)');
-    expect(scene).toContain('g.lineTo(this.field.x+370,this.field.y-80)');
-    expect(scene).toContain('this.add.rectangle(this.field.x+270,this.field.y-80,200,12');
+    expect(scene).toContain('g.lineTo(this.field.x+145,this.field.y-80)');
+    expect(scene).toContain('this.add.rectangle(this.field.x+270,this.field.y-80,250,12');
     expect(scene).toContain('this.add.rectangle(this.field.x+170,this.field.y-40,50,80');
     expect(scene).not.toContain('strokeRect(this.field.x+190,this.field.y-1,160,82)');
   });

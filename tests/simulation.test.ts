@@ -112,12 +112,12 @@ describe('MatchSimulation', () => {
     expect(earlyGoals).toHaveLength(0);
   });
 
-  it('keeps both goal sensors closed during the initial five-second safety window', () => {
+  it('allows a goal during the initial window without a five-second scoring lock', () => {
     const match=new MatchSimulation(113); match.start(); match.tick(1);
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
     match.tick(1/60);
-    expect(match.state.score.orange).toBe(0);
-    expect(match.state.goalResetTimer).toBe(0);
+    expect(match.state.score.orange).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
   });
 
   it('keeps robots from occupying the same visual position during play', () => {

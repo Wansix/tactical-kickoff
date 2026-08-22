@@ -28,6 +28,14 @@ describe('physics-first simulation contract', () => {
     expect(match.state.ball.y).toBeLessThan(400);
   });
 
+  it('debug kick mode draws and applies only the robot center line', () => {
+    const match=new MatchSimulation(105); match.setKickDebugLine(true); match.forceKickForTest();
+    const kick=match.getEvents().find(event=>event.type==='kick');
+    const robot=match.state.robots.find(candidate=>candidate.id===kick?.ids?.[0]);
+    expect(kick?.direction?.x).toBe(robot?.facingX);
+    expect(kick?.direction?.y).toBe(robot?.facingY);
+    expect(Math.abs((kick?.vxAfter??0)*robot!.facingY-(kick?.vyAfter??0)*robot!.facingX)).toBeLessThan(1e-9);
+  });
   it('escapes each physical corner with one bounded recovery', () => {
     for(const [index,corner] of [[18,18],[522,18],[18,882],[522,882]].entries()){
       const match=new MatchSimulation(200+index); match.start(); (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=0;
@@ -46,7 +54,7 @@ describe('physics-first simulation contract', () => {
     expect(match.state.ball.y).toBeLessThan(-3);
     expect(match.state.ball.vy).toBeLessThan(0);
     expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
-    const goalEvent=match.getEvents().find(event=>event.type==='goal');
+    const goalEvent=match.getEvents().filter(event=>event.type==='goal').at(-1);
     expect(goalEvent?.y).toBe(match.state.ball.y);
     expect(goalEvent?.decision?.scoringTeam).toBe('blue');
     expect(match.getEvents().some(event=>event.type==='goal')).toBe(true);
@@ -83,7 +91,7 @@ describe('physics-first simulation contract', () => {
     expect(match.state.ball.vy).toBeLessThan(0);
   });
   it('accepts shots through the widened goal mouth near both posts', () => {
-    for(const x of [175,365]){
+    for(const x of [200,340]){
       const match=new MatchSimulation(114+x); match.start();
       match.state.ball.x=x; match.state.ball.y=30; match.state.ball.vy=-500;
       (match as any).kickoffFirstKickPending=false; (match as any).kickoffSafetyTimer=0;
