@@ -9,7 +9,7 @@ describe('MatchSimulation', () => {
     expect(a.snapshot()).toEqual(b.snapshot());
   });
   it('scores and resets the ball when it crosses a goal line', () => {
-    const match = new MatchSimulation(7); match.start();
+    const match = new MatchSimulation(7); match.start(); match.tick(5);
     match.state.ball.y = -3;
     match.state.ball.x = match.field.width / 2;
     match.state.ball.vy = -10;
@@ -27,6 +27,7 @@ describe('MatchSimulation', () => {
   it('resets robots to their seed formation with no residual motion after a goal hold', () => {
     const match = new MatchSimulation(112); match.start();
     const formation = match.state.robots.map(robot => ({id:robot.id,x:robot.x,y:robot.y}));
+    match.tick(5);
     match.state.robots.forEach(robot => { robot.x=270; robot.y=430; robot.vx=90; robot.vy=-40; robot.kickCooldown=0.8; robot.kickLockout=0.1; });
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60); match.tick(1);
@@ -70,6 +71,35 @@ describe('MatchSimulation', () => {
     expect(robots.filter(r => r.id.endsWith('-1')).map(r => r.shape)).toEqual(['square','square']);
   });
 
+  it('sends an anchor to intercept a ball moving toward its own goal', () => {
+    const blueMatch=new MatchSimulation(77); blueMatch.start();
+    const blueAnchor=blueMatch.state.robots.find(r=>r.id==='blue-1')!;
+    blueMatch.state.ball.x=270; blueMatch.state.ball.y=600; blueMatch.state.ball.vy=80;
+    const blueStart={x:blueAnchor.x,y:blueAnchor.y};
+    for(let i=0;i<90;i++)blueMatch.tick(1/60);
+    const blueContacts=blueMatch.getEvents().filter(event=>event.type==='robot-ball-collision'&&event.ids?.includes('blue-1'));
+    expect(blueMatch.getTelemetry().some(frame=>frame.robots.find(robot=>robot.id==='blue-1')?.action==='PRESS')).toBe(true);
+    expect(Math.hypot(blueAnchor.x-blueStart.x,blueAnchor.y-blueStart.y)).toBeGreaterThan(40);
+    expect(blueContacts.length).toBeGreaterThan(0);
+
+    const orangeMatch=new MatchSimulation(77); orangeMatch.start();
+    const orangeAnchor=orangeMatch.state.robots.find(r=>r.id==='orange-1')!;
+    orangeMatch.state.ball.x=270; orangeMatch.state.ball.y=260; orangeMatch.state.ball.vy=-80;
+    const orangeStart={x:orangeAnchor.x,y:orangeAnchor.y};
+    for(let i=0;i<90;i++)orangeMatch.tick(1/60);
+    const orangeContacts=orangeMatch.getEvents().filter(event=>event.type==='robot-ball-collision'&&event.ids?.includes('orange-1'));
+    expect(orangeMatch.getTelemetry().some(frame=>frame.robots.find(robot=>robot.id==='orange-1')?.action==='PRESS')).toBe(true);
+    expect(Math.hypot(orangeAnchor.x-orangeStart.x,orangeAnchor.y-orangeStart.y)).toBeGreaterThan(40);
+    expect(orangeContacts.length).toBeGreaterThan(0);
+  });
+
+  it('does not allow a kickoff to score during the initial safety window', () => {
+    const match=new MatchSimulation(2025); match.start();
+    for(let i=0;i<5*60;i++)match.tick(1/60);
+    const earlyGoals=match.getEvents().filter(event=>event.type==='goal');
+    expect(earlyGoals).toHaveLength(0);
+  });
+
   it('keeps robots from occupying the same visual position during play', () => {
     const match = new MatchSimulation(12);
     match.start();
@@ -107,17 +137,17 @@ describe('MatchSimulation', () => {
   it('sends each anchor toward a ball inside its own half', () => {
     const blueMatch = new MatchSimulation(42); blueMatch.start();
     const blueBefore={...blueMatch.state.robots.find(r=>r.id==='blue-1')!};
-    blueMatch.state.ball.y=200; blueMatch.tick(1/60);
+    blueMatch.state.ball.y=700; blueMatch.tick(1/60);
     expect(blueMatch.state.robots.find(r=>r.id==='blue-1')!.action).toBe('PRESS');
-    for(let i=0;i<2*60;i++){blueMatch.state.ball.y=200;blueMatch.tick(1/60);}
+    for(let i=0;i<2*60;i++){blueMatch.state.ball.y=700;blueMatch.tick(1/60);}
     const blueAfter=blueMatch.state.robots.find(r=>r.id==='blue-1')!;
     expect(Math.hypot(blueAfter.x-blueBefore.x,blueAfter.y-blueBefore.y)).toBeGreaterThan(20);
 
     const orangeMatch = new MatchSimulation(42); orangeMatch.start();
     const orangeBefore={...orangeMatch.state.robots.find(r=>r.id==='orange-1')!};
-    orangeMatch.state.ball.y=700; orangeMatch.tick(1/60);
+    orangeMatch.state.ball.y=200; orangeMatch.tick(1/60);
     expect(orangeMatch.state.robots.find(r=>r.id==='orange-1')!.action).toBe('PRESS');
-    for(let i=0;i<2*60;i++){orangeMatch.state.ball.y=700;orangeMatch.tick(1/60);}
+    for(let i=0;i<2*60;i++){orangeMatch.state.ball.y=200;orangeMatch.tick(1/60);}
     const orangeAfter=orangeMatch.state.robots.find(r=>r.id==='orange-1')!;
     expect(Math.hypot(orangeAfter.x-orangeBefore.x,orangeAfter.y-orangeBefore.y)).toBeGreaterThan(20);
   });

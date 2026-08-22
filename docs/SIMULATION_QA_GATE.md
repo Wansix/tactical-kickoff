@@ -78,7 +78,9 @@
 필수 telemetry:
 
 - `firstKickBlue`, `firstKickOrange`: kickoff 선입 팀 독점 방지
-- 팀별 득점·득점 seed: 팀 대칭성 확인
+- 팀별 득점·득점 seed·`goalConcentration`: 팀 대칭성 확인; 한 팀 전체 득점 비중 `>70%`는 release blocker
+- `earlyGoals`: kickoff 후 5초 이내 골은 0이어야 함
+- `defensiveBlue`/`defensiveOrange`: 강제 자기 골 방향 scenario에서 앵커 contact 1회 이상·실점 0
 - `maxCollisionRun`, `maxDirectionReversalRun`: 반복 충돌·왕복 확인
 - `uniqueSignatures`, `totalGoals`: 상황 다양성과 실제 진행 확인
 - wall bounce와 corner recovery: 벽 접촉 반복과 stuck 탈출 분리

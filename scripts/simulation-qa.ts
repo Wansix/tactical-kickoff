@@ -3,7 +3,7 @@ import { MatchSimulation, type SimulationEvent, type TelemetryFrame, type Team }
 const SEEDS=Array.from({length:Number(process.env.QA_SEEDS??50)},(_,i)=>i+1);
 const SECONDS=Number(process.env.QA_SECONDS??60);
 
-type MatchReport={seed:number;goals:number;blueGoals:number;orangeGoals:number;kicks:number;firstKickTeam:'blue'|'orange'|'none';wallBounces:number;signature:string;maxCollisionRun:number;maxDirectionReversalRun:number;robotRanges:Record<string,{x:number;y:number}>};
+type MatchReport={seed:number;goals:number;blueGoals:number;orangeGoals:number;kicks:number;firstKickTeam:'blue'|'orange'|'none';firstGoalTick:number|null;earlyGoals:number;blueKicks:number;orangeKicks:number;blueWrongDirectionKicks:number;orangeWrongDirectionKicks:number;goalPrecedingKickTeams:string[];wallBounces:number;signature:string;maxCollisionRun:number;maxDirectionReversalRun:number;robotRanges:Record<string,{x:number;y:number}>};
 
 function collisionRun(events:SimulationEvent[]):number{
   const collisions=events.filter(e=>e.type==='robot-robot-collision'&&e.ids?.length===2).sort((a,b)=>a.tick-b.tick);
@@ -48,15 +48,34 @@ function run(seed:number):MatchReport{
   const signature=[match.state.score.blue,match.state.score.orange,events.filter(e=>e.type==='kick').length,events.filter(e=>e.type==='wall-bounce').length,Math.round(Math.max(...frames.map(f=>f.ball.x))-Math.min(...frames.map(f=>f.ball.x))),Math.round(Math.max(...frames.map(f=>f.ball.y))-Math.min(...frames.map(f=>f.ball.y)))].join(':');
   const firstKick=events.find(e=>e.type==='kick');
   const firstKickTeam=firstKick?.ids?.[0].startsWith('blue')?'blue':firstKick?.ids?.[0].startsWith('orange')?'orange':'none';
-  return {seed,goals:goals.length,blueGoals,orangeGoals,kicks:events.filter(e=>e.type==='kick').length,firstKickTeam,wallBounces:events.filter(e=>e.type==='wall-bounce').length,signature,maxCollisionRun:collisionRun(events),maxDirectionReversalRun:reversalRun(frames),robotRanges:rangeReport(frames)};
+  const kicks=events.filter(e=>e.type==='kick');
+  const wrong=(team:Team)=>kicks.filter(e=>e.ids?.[0].startsWith(team)&&((team==='blue'&&e.vyAfter!>=0)||(team==='orange'&&e.vyAfter!<=0))).length;
+  const goalPrecedingKickTeams=goals.map(goal=>kicks.filter(kick=>kick.tick<=goal.tick).at(-1)?.ids?.[0].split('-')[0]??'none');
+  return {seed,goals:goals.length,blueGoals,orangeGoals,kicks:kicks.length,firstKickTeam,firstGoalTick:goals[0]?.tick??null,earlyGoals:goals.filter(e=>e.tick<=5*60).length,blueKicks:kicks.filter(e=>e.ids?.[0].startsWith('blue')).length,orangeKicks:kicks.filter(e=>e.ids?.[0].startsWith('orange')).length,blueWrongDirectionKicks:wrong('blue'),orangeWrongDirectionKicks:wrong('orange'),goalPrecedingKickTeams,wallBounces:events.filter(e=>e.type==='wall-bounce').length,signature,maxCollisionRun:collisionRun(events),maxDirectionReversalRun:reversalRun(frames),robotRanges:rangeReport(frames)};
+}
+
+function defensiveScenario(team:Team){
+  const match=new MatchSimulation(77); match.start();
+  match.state.ball.x=270; match.state.ball.y=team==='blue'?600:260; match.state.ball.vy=team==='blue'?80:-80;
+  const defenderId=`${team}-1`;
+  for(let i=0;i<90;i++) match.tick(1/60);
+  const contacts=match.getEvents().filter(e=>e.type==='robot-ball-collision'&&e.ids?.includes(defenderId)).length;
+  const goals=match.getEvents().filter(e=>e.type==='goal').length;
+  return {contacts,goals};
 }
 
 const reports=SEEDS.map(run); const scoringTeams=new Set<Team>();
 for(const r of reports){if(r.blueGoals>0) scoringTeams.add('blue');if(r.orangeGoals>0) scoringTeams.add('orange');}
 const signatures=new Set(reports.map(r=>r.signature));
 const totalGoals=reports.reduce((n,r)=>n+r.goals,0),blueGoals=reports.reduce((n,r)=>n+r.blueGoals,0),orangeGoals=reports.reduce((n,r)=>n+r.orangeGoals,0);
+const goalConcentration=totalGoals?Math.max(blueGoals,orangeGoals)/totalGoals:0;
 const scoringSeedBlue=reports.filter(r=>r.blueGoals>0).length,scoringSeedOrange=reports.filter(r=>r.orangeGoals>0).length;
 const firstKickBlue=reports.filter(r=>r.firstKickTeam==='blue').length,firstKickOrange=reports.filter(r=>r.firstKickTeam==='orange').length;
+const earlyGoals=reports.reduce((n,r)=>n+r.earlyGoals,0);
+const blueKicks=reports.reduce((n,r)=>n+r.blueKicks,0),orangeKicks=reports.reduce((n,r)=>n+r.orangeKicks,0);
+const blueWrongDirectionKicks=reports.reduce((n,r)=>n+r.blueWrongDirectionKicks,0),orangeWrongDirectionKicks=reports.reduce((n,r)=>n+r.orangeWrongDirectionKicks,0);
+const goalPrecedingKickTeams=reports.flatMap(r=>r.goalPrecedingKickTeams);
+const defensiveBlue=defensiveScenario('blue'),defensiveOrange=defensiveScenario('orange');
 const maxCollisionRun=Math.max(...reports.map(r=>r.maxCollisionRun)); const maxDirectionReversalRun=Math.max(...reports.map(r=>r.maxDirectionReversalRun));
 const rangeFailures=reports.flatMap(r=>Object.entries(r.robotRanges).filter(([,range])=>Math.max(range.x,range.y)<40).map(([id])=>`${r.seed}:${id}`));
 const failures:string[]=[];
@@ -65,11 +84,14 @@ if(totalGoals<10) failures.push(`total goals ${totalGoals}<10`);
 if(!scoringTeams.has('blue')||!scoringTeams.has('orange')) failures.push(`scoring teams ${[...scoringTeams].join(',')||'none'}`);
 if(scoringSeedBlue<5||scoringSeedOrange<5) failures.push(`scoring seed minimum blue=${scoringSeedBlue} orange=${scoringSeedOrange}`);
 if(firstKickBlue<5||firstKickOrange<5) failures.push(`first kickoff minimum blue=${firstKickBlue} orange=${firstKickOrange}`);
+if(earlyGoals>0) failures.push(`kickoff early goals ${earlyGoals}>0 within 5s`);
+if(defensiveBlue.contacts<1||defensiveOrange.contacts<1||defensiveBlue.goals>0||defensiveOrange.goals>0) failures.push(`defensive scenario blue=${JSON.stringify(defensiveBlue)} orange=${JSON.stringify(defensiveOrange)}`);
+if(goalConcentration>0.7) failures.push(`goal concentration ${goalConcentration.toFixed(3)}>0.7 blue=${blueGoals} orange=${orangeGoals}`);
 const scoringSeedTotal=scoringSeedBlue+scoringSeedOrange;
 if(Math.max(scoringSeedBlue,scoringSeedOrange)>scoringSeedTotal*0.8) failures.push(`scoring seed concentration blue=${scoringSeedBlue} orange=${scoringSeedOrange}`);
 if(maxCollisionRun>3) failures.push(`max same-pair collision run ${maxCollisionRun}>3`);
 if(maxDirectionReversalRun>6) failures.push(`max direction reversal run ${maxDirectionReversalRun}>6`);
 if(rangeFailures.length>0) failures.push(`low movement ranges ${rangeFailures.slice(0,5).join(',')}`);
-const result={matches:reports.length,uniqueSignatures:signatures.size,totalGoals,blueGoals,orangeGoals,scoringSeedBlue,scoringSeedOrange,firstKickBlue,firstKickOrange,maxCollisionRun,maxDirectionReversalRun,scoringTeams:[...scoringTeams],failures};
+const result={matches:reports.length,uniqueSignatures:signatures.size,totalGoals,blueGoals,orangeGoals,goalConcentration,scoringSeedBlue,scoringSeedOrange,firstKickBlue,firstKickOrange,blueKicks,orangeKicks,blueWrongDirectionKicks,orangeWrongDirectionKicks,goalPrecedingKickTeams,earlyGoals,firstGoalTicks:reports.map(r=>({seed:r.seed,tick:r.firstGoalTick})).filter(r=>r.tick!==null).slice(0,10),defensiveBlue,defensiveOrange,maxCollisionRun,maxDirectionReversalRun,scoringTeams:[...scoringTeams],failures};
 console.log(`SIMULATION_QA_REPORT ${JSON.stringify(result)}`);
 if(failures.length) process.exit(1);
