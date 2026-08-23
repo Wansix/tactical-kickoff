@@ -22,7 +22,7 @@ export class TestLab {
   private onMode?: (active:boolean)=>void;
   constructor(host:HTMLElement,onConfig?:(config:LabConfig)=>void,onMode?:(active:boolean)=>void){
     this.onConfig=onConfig; this.onMode=onMode;
-    const menu=document.createElement('button'); menu.className='lab-menu-button'; menu.textContent='🧪 TEST LAB · 실제 1v1 움직임'; menu.onclick=()=>{this.root.hidden=!this.root.hidden; const active=!this.root.hidden; menu.textContent=active?'← 경기 화면으로 돌아가기':'🧪 TEST LAB · 실제 1v1 움직임'; this.onMode?.(active); if(active)this.syncVisual();}; host.prepend(menu);
+    const menu=document.createElement('button'); menu.className='lab-menu-button'; menu.textContent='🧪 TEST LAB · 실제 1v1 움직임'; menu.onclick=()=>{this.root.hidden=!this.root.hidden; const active=!this.root.hidden; menu.textContent=active?'← 경기 화면으로 돌아가기':'🧪 TEST LAB · 실제 1v1 움직임'; for(const child of Array.from(host.children)){if(child!==menu&&child!==this.root)(child as HTMLElement).hidden=active;} this.onMode?.(active); if(active)this.syncVisual();}; host.prepend(menu);
     this.root=document.createElement('section');
     this.root.className='test-lab panel';
     this.root.innerHTML=`<h2>Robot Test Lab · 실제 1v1 경기장</h2><p class="hint">경기장에는 내 로봇 1대와 상대 로봇 1대만 놓입니다. 양쪽 Brain/Body를 바꾸고 실제 움직임을 관찰하세요.</p>
