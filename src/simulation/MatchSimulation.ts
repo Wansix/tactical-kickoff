@@ -49,6 +49,7 @@ export const KICK_RANGE_PROFILES={
   sweeper:{distance:44,halfAngleDeg:50},
   goalkeeper:{distance:34,halfAngleDeg:55},
 } as const;
+const GOALKEEPER_STEP_OUT=70;
 const SWEEPER_HOME_DEPTH=250;
 const BULWARK_HOME_DEPTH=120;
 const GOALKEEPER_HOME_DEPTH=42;
@@ -66,7 +67,7 @@ const WALL_BOUNCE=0.75;
 const KICK_POWER=300;
 const SWEEPER_CLEAR_SPEED=900;
 const SWEEPER_EXIT_SPEED=360;
-export const SWEEPER_FORWARD_LIMIT=90;
+export const SWEEPER_FORWARD_LIMIT=180;
 const CANNON_KICK_POWER=315;
 const ROBOT_SPEED_MULT=2;
 const ROBOT_ACCEL_MULT=2;
@@ -117,7 +118,7 @@ export class MatchSimulation {
   }
 
   private shapeForRole(role:Role):RobotShape { return ({striker:'circle',bulwark:'square',scout:'diamond',dribbler:'circle',cannon:'hex',sweeper:'square',goalkeeper:'hex'} as Record<Role,RobotShape>)[role]; }
-  private profileForArchetype(archetype:RobotArchetype){return ({striker:{mass:2,maxSpeed:230,acceleration:1000},bulwark:{mass:3.2,maxSpeed:156,acceleration:600},scout:{mass:1.6,maxSpeed:290,acceleration:1240},dribbler:{mass:2.1,maxSpeed:210,acceleration:920},cannon:{mass:2.5,maxSpeed:184,acceleration:760},sweeper:{mass:3,maxSpeed:220,acceleration:1200},goalkeeper:{mass:3.8,maxSpeed:150,acceleration:1000}} as const)[archetype];}
+  private profileForArchetype(archetype:RobotArchetype){return ({striker:{mass:2,maxSpeed:230,acceleration:1000},bulwark:{mass:3.2,maxSpeed:156,acceleration:600},scout:{mass:1.6,maxSpeed:290,acceleration:1240},dribbler:{mass:2.1,maxSpeed:210,acceleration:920},cannon:{mass:2.5,maxSpeed:184,acceleration:760},sweeper:{mass:3,maxSpeed:260,acceleration:1500},goalkeeper:{mass:3.8,maxSpeed:200,acceleration:1300}} as const)[archetype];}
 
   start(){
     if(this.state.status==='ready') { this.paused=false; this.kickoffTimer=0.75; this.kickoffRaceTicks=180; this.kickoffSafetyTimer=5; this.kickoffFirstKickPending=true; this.state.status='running'; this.recordEvent({type:'kickoff',x:this.state.ball.x,y:this.state.ball.y}); }
@@ -202,7 +203,13 @@ export class MatchSimulation {
       let targetX=centerX+side,targetY=this.field.height/2-attack*150+(b.y-this.field.height/2)*0.25;
       let action:Action='COVER';
       switch(robot.archetype){
-        case 'goalkeeper': targetX=this.clamp(centerX+(b.x-centerX)*0.45,GOAL_AREA.left+ROBOT_RADIUS,GOAL_AREA.right-ROBOT_RADIUS);targetY=robot.homeY;robot.target='GOAL_LINE';action='COVER';break;
+        case 'goalkeeper': {
+          const ownAreaNearBall=robot.team==='blue'?b.y>=this.field.height-GOAL_AREA.depth:b.y<=GOAL_AREA.depth;
+          const stepOut=ownAreaNearBall?Math.min(GOALKEEPER_STEP_OUT,Math.max(0,Math.abs(b.y-robot.homeY))):0;
+          targetX=this.clamp(centerX+(b.x-centerX)*0.45,GOAL_AREA.left+ROBOT_RADIUS,GOAL_AREA.right-ROBOT_RADIUS);
+          targetY=robot.homeY+(robot.team==='blue'?-stepOut:stepOut);
+          robot.target='GOAL_LINE';action='COVER';break;
+        }
         case 'striker': {
           const attackY=robot.team==='blue'?-1:1;
           const toBallX=b.x-robot.x,toBallY=b.y-robot.y,toBallLen=Math.hypot(toBallX,toBallY)||1;
@@ -315,7 +322,8 @@ export class MatchSimulation {
       const distanceToBallBefore=Math.hypot(b.x-robot.x,b.y-robot.y);
       const velocityTowardTarget=robot.vx*dx+robot.vy*dy;
       const closingOnBall=(action==='PRESS')&&distanceToBallBefore<60&&(Math.hypot(robot.vx,robot.vy)<1||velocityTowardTarget>=-robot.maxSpeed*20);
-      const desiredSpeed=(robot.archetype==='striker'||robot.archetype==='bulwark')&&action==='PRESS'?robot.maxSpeed:(closingOnBall?robot.maxSpeed:Math.min(robot.maxSpeed,len*2.2));
+      const approachMultiplier=robot.archetype==='goalkeeper'||robot.archetype==='sweeper'?4.5:2.2;
+      const desiredSpeed=(robot.archetype==='striker'||robot.archetype==='bulwark')&&action==='PRESS'?robot.maxSpeed:(closingOnBall?robot.maxSpeed:Math.min(robot.maxSpeed,len*approachMultiplier));
       const desiredX=dx/len*desiredSpeed,desiredY=dy/len*desiredSpeed;
       const maxDelta=robot.acceleration*dt;
       robot.vx+=this.clamp(desiredX-robot.vx,-maxDelta,maxDelta);
@@ -335,7 +343,13 @@ export class MatchSimulation {
           if(robot.reversalRun>=1){robot.reversalLockTicks=30;robot.reversalRun=0;}
         }
       }
-      if(robot.archetype==='goalkeeper'){robot.x=this.clamp(robot.x,GOAL_AREA.left+ROBOT_RADIUS,GOAL_AREA.right-ROBOT_RADIUS);robot.y=robot.homeY;robot.moveTargetX=targetX;robot.moveTargetY=targetY;robot.vy=0;}
+      if(robot.archetype==='goalkeeper'){
+        robot.x=this.clamp(robot.x,GOAL_AREA.left+ROBOT_RADIUS,GOAL_AREA.right-ROBOT_RADIUS);
+        const stepOutMin=robot.team==='blue'?robot.homeY-GOALKEEPER_STEP_OUT:robot.homeY;
+        const stepOutMax=robot.team==='blue'?robot.homeY:robot.homeY+GOALKEEPER_STEP_OUT;
+        robot.y=this.clamp(robot.y,stepOutMin,stepOutMax);
+        robot.moveTargetX=targetX;robot.moveTargetY=targetY;
+      }
       if(robot.archetype==='bulwark'||robot.archetype==='sweeper'){const minY=robot.team==='orange'?28:this.field.height/2-SWEEPER_FORWARD_LIMIT;const maxY=robot.team==='orange'?this.field.height/2+SWEEPER_FORWARD_LIMIT:this.field.height-28;if((robot.y<=minY&&robot.vy<0)||(robot.y>=maxY&&robot.vy>0))robot.vy=0;}
       if(robot.archetype==='bulwark'||robot.archetype==='sweeper'){
         const rawX=robot.x,rawY=robot.y; const bounded=this.clampSweeperTarget(robot.team,robot.x,robot.y); robot.x=bounded.x; robot.y=bounded.y;
