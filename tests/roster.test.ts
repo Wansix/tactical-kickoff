@@ -41,14 +41,14 @@ describe('3v3 roster and pre-match composition', () => {
     const orangeSweeper = match.state.robots.find(robot => robot.id === 'orange-1')!;
     expect(blueKeeper.homeY).toBe(818);
     expect(orangeKeeper.homeY).toBe(42);
-    expect(blueKeeper.maxSpeed).toBe(300);
-    expect(orangeKeeper.maxSpeed).toBe(300);
+    expect(blueKeeper.maxSpeed).toBe(400);
+    expect(orangeKeeper.maxSpeed).toBe(400);
     expect(blueSweeper.homeY).toBeLessThan(860 - GOAL_AREA.depth);
     expect(orangeSweeper.homeY).toBeGreaterThan(GOAL_AREA.depth);
     expect(blueSweeper.homeX).toBe(270);
     expect(orangeSweeper.homeX).toBe(270);
-    expect(blueSweeper.maxSpeed).toBe(440);
-    expect(orangeSweeper.maxSpeed).toBe(440);
+    expect(blueSweeper.maxSpeed).toBe(520);
+    expect(orangeSweeper.maxSpeed).toBe(520);
   });
 
   it('does not clear-kick a ball until the Sweeper physically contacts it', () => {
