@@ -123,7 +123,8 @@ describe('MatchSimulation', () => {
   });
 
   it('allows a goal during the post-goal kickoff window', () => {
-    const match=new MatchSimulation(114); match.start(); match.tick(5);
+    const match=new MatchSimulation(114); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false;
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
     match.tick(1/60);
     expect(match.state.score.orange).toBe(1);
