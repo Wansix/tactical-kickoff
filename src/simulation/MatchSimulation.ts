@@ -50,7 +50,7 @@ const DAMPING=0.82;
 const ROBOT_BALL_RESTITUTION=1.85;
 const WALL_BOUNCE=0.75;
 const KICK_POWER=300;
-const SWEEPER_CLEAR_SPEED=720;
+const SWEEPER_CLEAR_SPEED=900;
 const CANNON_KICK_POWER=315;
 const ROBOT_SPEED_MULT=2;
 const ROBOT_ACCEL_MULT=2;
@@ -355,11 +355,11 @@ export class MatchSimulation {
 
         this.recordEvent({type:'robot-ball-collision',ids:[robot.id],x:b.x,y:b.y,impulse,vxBefore:beforeX,vyBefore:beforeY,vxAfter:b.vx,vyAfter:b.vy});
         this.ballContactCooldown[robot.id]=8/60;
-        if((robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.sweeperState==='INTERCEPT'&&robot.clearCooldown<=0) this.applySweeperClear(robot);
+        if((robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.clearCooldown<=0&&(robot.team==='blue'?b.y>this.field.height/2:b.y<this.field.height/2)) this.applySweeperClear(robot);
       } else {
         this.recordEvent({type:'robot-ball-collision',ids:[robot.id],x:b.x,y:b.y,impulse:0,vxBefore:b.vx,vyBefore:b.vy,vxAfter:b.vx,vyAfter:b.vy,reason:'physical contact without inward relative velocity'});
         this.ballContactCooldown[robot.id]=8/60;
-        if((robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.sweeperState==='INTERCEPT'&&robot.clearCooldown<=0) this.applySweeperClear(robot);
+        if((robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.clearCooldown<=0&&(robot.team==='blue'?b.y>this.field.height/2:b.y<this.field.height/2)) this.applySweeperClear(robot);
       }
       const forward=robot.facingX*nx+robot.facingY*ny;
       const lineDistance=Math.abs((b.x-robot.x)*robot.facingY-(b.y-robot.y)*robot.facingX);
