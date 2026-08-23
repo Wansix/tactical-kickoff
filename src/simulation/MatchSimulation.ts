@@ -39,6 +39,15 @@ export interface TelemetryFrame {
 
 export const ARCHETYPES:RobotArchetype[]=['striker','bulwark','scout','dribbler','cannon','sweeper'];
 export type TeamComposition={blue:[RobotArchetype,RobotArchetype];orange:[RobotArchetype,RobotArchetype]};
+export const KICK_RANGE_PROFILES={
+  scout:{distance:30,halfAngleDeg:40},
+  striker:{distance:34,halfAngleDeg:35},
+  dribbler:{distance:32,halfAngleDeg:45},
+  cannon:{distance:36,halfAngleDeg:28},
+  bulwark:{distance:40,halfAngleDeg:50},
+  sweeper:{distance:44,halfAngleDeg:50},
+} as const;
+const SWEEPER_HOME_DEPTH=120;
 const FIXED_DT=1/60;
 export const GOAL_GEOMETRY={mouthLeft:195,mouthRight:345,postLeft:170,postRight:370,postThickness:50,barLeft:145,barRight:395,depth:105} as const;
 const GOAL_LEFT=GOAL_GEOMETRY.mouthLeft;
@@ -186,7 +195,7 @@ export class MatchSimulation {
           targetX=b.x-Math.sign(b.x-centerX||1)*70; targetY=b.y-attack*34; action='SHOOT'; break;
         }
         case 'bulwark': {
-          const homeY=attack<0?this.field.height-160:160;
+          const homeY=attack<0?this.field.height-SWEEPER_HOME_DEPTH:SWEEPER_HOME_DEPTH;
           const ballInOwnHalf=attack<0?b.y>centerY:b.y<centerY;
           const ballMovingTowardOwnGoal=attack<0?b.vy>60:b.vy< -60;
           const goalThreat=ballInOwnHalf&&ballMovingTowardOwnGoal;
@@ -206,7 +215,7 @@ export class MatchSimulation {
           break;
         }
         case 'sweeper': {
-          const homeY=attack<0?this.field.height-160:160;
+          const homeY=attack<0?this.field.height-SWEEPER_HOME_DEPTH:SWEEPER_HOME_DEPTH;
           const homeX=centerX+side;
           const ballInOwnHalf=attack<0?b.y>centerY:b.y<centerY;
           const ballTowardOwnGoal=attack<0?b.vy>45:b.vy< -45;
@@ -342,7 +351,7 @@ export class MatchSimulation {
 
       const dx=b.x-robot.x,dy=b.y-robot.y,dist=Math.hypot(dx,dy)||1,minDist=robot.radius+b.radius;
       const isSweeper=robot.archetype==='bulwark'||robot.archetype==='sweeper';
-      const contactReach=isSweeper?44:minDist;
+      const contactReach=isSweeper?KICK_RANGE_PROFILES[robot.archetype].distance:minDist;
       if(dist>contactReach+1) continue;
       const nx=dx/dist,ny=dy/dist;
       const penetration=minDist-dist;
@@ -365,7 +374,9 @@ export class MatchSimulation {
       }
       const forward=robot.facingX*nx+robot.facingY*ny;
       const lineDistance=Math.abs((b.x-robot.x)*robot.facingY-(b.y-robot.y)*robot.facingX);
-      if((robot.archetype==='striker'||robot.archetype==='cannon')&&dist<=32&&((forward>=Math.cos(35*Math.PI/180))||(robot.archetype==='striker'&&robot.action==='PRESS'))&&(!this.kickDebugLine||lineDistance<=8)) candidates.push({robot,nx,ny,distance:dist,score:forward-dist/100});
+      const kickProfile=KICK_RANGE_PROFILES[robot.archetype as keyof typeof KICK_RANGE_PROFILES];
+      const kickHalfAngle=Math.cos(kickProfile.halfAngleDeg*Math.PI/180);
+      if((robot.archetype==='striker'||robot.archetype==='cannon')&&dist<=kickProfile.distance&&((forward>=kickHalfAngle)||(robot.archetype==='striker'&&robot.action==='PRESS'))&&(!this.kickDebugLine||lineDistance<=8)) candidates.push({robot,nx,ny,distance:dist,score:forward-dist/100});
     }
     candidates.sort((a,b2)=>b2.score-a.score||a.robot.id.localeCompare(b2.robot.id));
     if(candidates[0])this.tryKick(candidates[0].robot,candidates[0].nx,candidates[0].ny);
@@ -386,7 +397,8 @@ export class MatchSimulation {
     if((robot.archetype!=='striker'&&robot.archetype!=='cannon')||robot.kickCooldown>0||robot.kickLockout>0||this.kickoffTimer>0||this.ballKickInvuln>0) return;
     if(this.kickoffFirstKickPending&&robot.team!==this.kickoffPreferredTeam)return;
     const forward=robot.facingX*nx+robot.facingY*ny;
-    if(forward<Math.cos(35*Math.PI/180)&&!(robot.archetype==='striker'&&robot.action==='PRESS')||Math.hypot(b.x-robot.x,b.y-robot.y)>32||this.kickBurstCount>=3) return;
+    const kickProfile=KICK_RANGE_PROFILES[robot.archetype];
+    if(forward<Math.cos(kickProfile.halfAngleDeg*Math.PI/180)&&!(robot.archetype==='striker'&&robot.action==='PRESS')||Math.hypot(b.x-robot.x,b.y-robot.y)>kickProfile.distance||this.kickBurstCount>=3) return;
     if(this.lastKickTeam===robot.team&&this.state.elapsed-this.lastKickElapsed<0.24&&Math.hypot(b.x-this.lastKickX,b.y-this.lastKickY)<40)return;
     const attackY=robot.team==='blue'?-1:1;
     const goalX=this.field.width/2;

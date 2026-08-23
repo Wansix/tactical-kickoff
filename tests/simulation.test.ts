@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MatchSimulation } from '../src/simulation/MatchSimulation';
+import { MatchSimulation, KICK_RANGE_PROFILES } from '../src/simulation/MatchSimulation';
 import { configureStriker1v1 } from './fixtures';
 
 describe('MatchSimulation', () => {
@@ -87,7 +87,7 @@ describe('MatchSimulation', () => {
   it('sends an anchor to intercept a ball moving toward its own goal', () => {
     const blueMatch=new MatchSimulation(77,{blue:['bulwark','bulwark'],orange:['bulwark','bulwark']}); blueMatch.start();
     const blueAnchor=blueMatch.state.robots.find(r=>r.id==='blue-1')!;
-    blueMatch.state.ball.x=270; blueMatch.state.ball.y=600; blueMatch.state.ball.vy=80;
+    blueMatch.state.ball.x=270; blueMatch.state.ball.y=640; blueMatch.state.ball.vy=80;
     const blueStart={x:blueAnchor.x,y:blueAnchor.y};
     for(let i=0;i<90;i++)blueMatch.tick(1/60);
     const blueContacts=blueMatch.getEvents().filter(event=>event.type==='robot-ball-collision'&&event.ids?.includes('blue-1'));
@@ -97,7 +97,7 @@ describe('MatchSimulation', () => {
 
     const orangeMatch=new MatchSimulation(77,{blue:['bulwark','bulwark'],orange:['bulwark','bulwark']}); orangeMatch.start();
     const orangeAnchor=orangeMatch.state.robots.find(r=>r.id==='orange-1')!;
-    orangeMatch.state.ball.x=270; orangeMatch.state.ball.y=260; orangeMatch.state.ball.vy=-80;
+    orangeMatch.state.ball.x=270; orangeMatch.state.ball.y=220; orangeMatch.state.ball.vy=-80;
     const orangeStart={x:orangeAnchor.x,y:orangeAnchor.y};
     for(let i=0;i<90;i++)orangeMatch.tick(1/60);
     const orangeContacts=orangeMatch.getEvents().filter(event=>event.type==='robot-ball-collision'&&event.ids?.includes('orange-1'));
@@ -224,6 +224,15 @@ describe('MatchSimulation', () => {
     expect(sweeper.sweeperState).toBe('INTERCEPT');
     expect(sweeper.y).toBeLessThan(match.state.ball.y);
     expect(sweeper.moveTargetY).toBeLessThan(match.state.ball.y);
+  });
+
+  it('uses distinct role-specific kick range profiles and a closer symmetric Sweeper post', () => {
+    expect(KICK_RANGE_PROFILES.sweeper.distance).toBeGreaterThan(KICK_RANGE_PROFILES.striker.distance);
+    expect(KICK_RANGE_PROFILES.cannon.halfAngleDeg).toBeLessThan(KICK_RANGE_PROFILES.dribbler.halfAngleDeg);
+    const match=new MatchSimulation(9090,{blue:['sweeper','striker'],orange:['sweeper','striker']});
+    match.start(); match.tick(1/60);
+    expect(match.state.robots.find(robot=>robot.id==='blue-0')!.moveTargetY).toBe(740);
+    expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetY).toBe(120);
   });
 
   it('clears a near-miss ball inside the Sweeper interception reach', () => {
