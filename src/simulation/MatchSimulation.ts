@@ -52,7 +52,7 @@ export const KICK_RANGE_PROFILES={
 const GOALKEEPER_STEP_OUT=70;
 const SWEEPER_HOME_DEPTH=250;
 const BULWARK_HOME_DEPTH=120;
-const GOALKEEPER_HOME_DEPTH=28;
+const GOALKEEPER_HOME_DEPTH=20;
 const FIXED_DT=1/60;
 export const GOAL_GEOMETRY={mouthLeft:195,mouthRight:345,postLeft:170,postRight:370,postThickness:50,barLeft:145,barRight:395,depth:105} as const;
 export const GOAL_AREA={left:110,right:430,depth:180} as const;
@@ -182,7 +182,7 @@ export class MatchSimulation {
 
     this.decideAndMoveRobots(dt);
     this.resolveRobotRobotCollisions();
-    for(const robot of this.state.robots){robot.x=this.clamp(robot.x,28,this.field.width-28);robot.y=this.clamp(robot.y,28,this.field.height-28);}
+    for(const robot of this.state.robots){const minY=robot.archetype==='goalkeeper'?ROBOT_RADIUS:28;const maxY=robot.archetype==='goalkeeper'?this.field.height-ROBOT_RADIUS:this.field.height-28;robot.x=this.clamp(robot.x,28,this.field.width-28);robot.y=this.clamp(robot.y,minY,maxY);}
     if(this.kickoffTimer<=0) this.resolveRobotBallCollisions();
     this.integrateBall(dt);
     this.resolveGoalOrWalls();
@@ -282,8 +282,12 @@ export class MatchSimulation {
           if(robot.sweeperState==='INTERCEPT_STAGE'||robot.sweeperState==='INTERCEPT'){
             const predictedX=b.x-b.vx*0.15;
             const urgent=distanceToBall<220;
+            const ownGoalProximity=robot.team==='blue'?b.y>this.field.height-GOAL_AREA.depth-80:b.y<GOAL_AREA.depth+80;
+            const ballTowardOwnGoal=robot.team==='blue'?b.vy>60:b.vy< -60;
+            const goalThreat=ownGoalProximity&&(ballTowardOwnGoal||urgent|| (robot.team==='blue'?b.y>=this.field.height-GOAL_AREA.depth:b.y<=GOAL_AREA.depth));
             const angleTarget=this.goalAngleBlockTarget(robot.team,predictedX,b.y);
-            const blockTarget=urgent?this.clampSweeperRoleTarget(robot.team,predictedX,b.y-attack*30):this.clampSweeperRoleTarget(robot.team,angleTarget.x,angleTarget.y);
+            const freeOwnHalfTarget=this.clampSweeperTarget(robot.team,predictedX,b.y-attack*18);
+            const blockTarget=goalThreat?this.clampSweeperRoleTarget(robot.team,angleTarget.x,angleTarget.y):freeOwnHalfTarget;
             targetX=blockTarget.x; targetY=blockTarget.y;
             action='PRESS'; robot.target='GOAL_BLOCK';
           } else if(robot.sweeperState==='RETURN_TO_POST'){
@@ -338,8 +342,9 @@ export class MatchSimulation {
       if(robot.archetype!=='bulwark'&&robot.archetype!=='sweeper'&&robot.archetype!=='goalkeeper'&&Math.hypot(robot.vx,robot.vy)>1){const facingLen=Math.hypot(robot.vx,robot.vy);robot.facingX=robot.vx/facingLen;robot.facingY=robot.vy/facingLen;}
       if(robot.archetype==='striker'&&robot.lastMoveX*robot.vx+robot.lastMoveY*robot.vy<0){robot.vx=0;robot.vy=0;robot.lastMoveX=0;robot.lastMoveY=0;robot.reversalLockTicks=30;}
       const previousX=robot.x,previousY=robot.y;
+      const robotMinY=robot.archetype==='goalkeeper'?ROBOT_RADIUS:28,robotMaxY=robot.archetype==='goalkeeper'?this.field.height-ROBOT_RADIUS:this.field.height-28;
       robot.x=this.clamp(robot.x+robot.vx*dt,28,this.field.width-28);
-      robot.y=this.clamp(robot.y+robot.vy*dt,28,this.field.height-28);
+      robot.y=this.clamp(robot.y+robot.vy*dt,robotMinY,robotMaxY);
       if(robot.archetype==='striker'){
         const moveX=robot.x-previousX,moveY=robot.y-previousY;
         if(Math.hypot(moveX,moveY)>=2){
@@ -362,7 +367,7 @@ export class MatchSimulation {
         if(rawX<robot.x&&robot.vx<0||rawX>robot.x&&robot.vx>0)robot.vx=0;
         if(rawY<robot.y&&robot.vy<0||rawY>robot.y&&robot.vy>0)robot.vy=0;
       }
-      if(robot.archetype==='bulwark'||robot.archetype==='sweeper'){const settleDistance=Math.hypot(robot.moveTargetX-robot.x,robot.moveTargetY-robot.y);if(this.state.elapsed>4.5&&settleDistance<200){robot.vx*=0.001;robot.vy*=0.001;}if(robot.archetype==='bulwark'&&this.state.elapsed>4.5&&Math.hypot(b.vx,b.vy)<1){robot.x=robot.moveTargetX;robot.y=robot.moveTargetY;robot.vx=0;robot.vy=0;}}
+      if(robot.archetype==='bulwark'){const settleDistance=Math.hypot(robot.moveTargetX-robot.x,robot.moveTargetY-robot.y);if(this.state.elapsed>4.5&&settleDistance<200){robot.vx*=0.001;robot.vy*=0.001;}if(this.state.elapsed>4.5&&Math.hypot(b.vx,b.vy)<1){robot.x=robot.moveTargetX;robot.y=robot.moveTargetY;robot.vx=0;robot.vy=0;}}
       if(robot.archetype==='bulwark'||robot.archetype==='sweeper'){const lookX=b.x-robot.x,lookY=b.y-robot.y,lookLen=Math.hypot(lookX,lookY)||1;robot.facingX=lookX/lookLen;robot.facingY=lookY/lookLen;}
       robot.backpedal=robot.facingX*robot.vx+robot.facingY*robot.vy<0;
       if(robot.archetype!=='bulwark'&&robot.archetype!=='sweeper'&&robot.target!=='GOAL_BLOCK') robot.target='BALL';
@@ -438,7 +443,7 @@ export class MatchSimulation {
       const nx=dx/dist,ny=dy/dist;
       const penetration=minDist-dist;
       if(penetration>0){const invBall=1/b.mass,invRobot=1/robot.mass,total=invBall+invRobot;b.x+=nx*penetration*invBall/total;b.y+=ny*penetration*invBall/total;robot.x=this.clamp(robot.x-nx*penetration*invRobot/total,28,this.field.width-28);robot.y=this.clamp(robot.y-ny*penetration*invRobot/total,28,this.field.height-28);}
-      if(robot.archetype==='goalkeeper'&&robot.clearCooldown<=0){
+      if(robot.archetype==='goalkeeper'&&robot.clearCooldown<=0&&!this.kickoffFirstKickPending){
         this.applyGoalkeeperClear(robot);
         this.ballContactCooldown[robot.id]=8/60;
         continue;
@@ -459,7 +464,7 @@ export class MatchSimulation {
           this.recordEvent({type:'robot-ball-collision',ids:[robot.id],x:b.x,y:b.y,impulse,vxBefore:beforeX,vyBefore:beforeY,vxAfter:b.vx,vyAfter:b.vy});
         }
         this.ballContactCooldown[robot.id]=8/60;
-        if(!ownGoalRisk&&(robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.clearCooldown<=0&&(robot.team==='blue'?b.y>this.field.height/2:b.y<this.field.height/2)) this.applySweeperClear(robot);
+        if(!ownGoalRisk&&(robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.clearCooldown<=0&&!this.kickoffFirstKickPending&&(robot.team==='blue'?b.y>this.field.height/2:b.y<this.field.height/2)) this.applySweeperClear(robot);
       } else {
         if(ownGoalRisk){
           const beforeX=b.vx,beforeY=b.vy; b.vx*=0.15; b.vy=attackY*80;
@@ -468,7 +473,7 @@ export class MatchSimulation {
           this.recordEvent({type:'robot-ball-collision',ids:[robot.id],x:b.x,y:b.y,impulse:0,vxBefore:b.vx,vyBefore:b.vy,vxAfter:b.vx,vyAfter:b.vy,reason:'physical contact without inward relative velocity'});
         }
         this.ballContactCooldown[robot.id]=8/60;
-        if(!ownGoalRisk&&(robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.clearCooldown<=0&&(robot.team==='blue'?b.y>this.field.height/2:b.y<this.field.height/2)) this.applySweeperClear(robot);
+        if(!ownGoalRisk&&(robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.clearCooldown<=0&&!this.kickoffFirstKickPending&&(robot.team==='blue'?b.y>this.field.height/2:b.y<this.field.height/2)) this.applySweeperClear(robot);
       }
       const forward=robot.facingX*nx+robot.facingY*ny;
       const lineDistance=Math.abs((b.x-robot.x)*robot.facingY-(b.y-robot.y)*robot.facingX);
@@ -496,14 +501,18 @@ export class MatchSimulation {
   private applyGoalkeeperClear(robot:Robot){
     const b=this.state.ball; const attackY=robot.team==='blue'?-1:1;
     const beforeX=b.vx,beforeY=b.vy;
-    this.applyBallImpulse(0,attackY*GOALKEEPER_CLEAR_SPEED-beforeY);
+    const side=Math.sign(b.x-robot.x)|| (robot.id.endsWith('-2')?1:-1);
+    const directionX=side*0.92,directionY=attackY*0.39;
+    const directionLength=Math.hypot(directionX,directionY)||1;
+    const unitX=directionX/directionLength,unitY=directionY/directionLength;
+    this.applyBallImpulse(unitX*GOALKEEPER_CLEAR_SPEED-beforeX,unitY*GOALKEEPER_CLEAR_SPEED-beforeY);
     const appliedImpulse=Math.hypot(b.vx-beforeX,b.vy-beforeY)*b.mass;
     this.sweeperClearTeam=robot.team;
     const ownAreaBoundary=robot.team==='blue'?this.field.height-GOAL_AREA.depth:GOAL_AREA.depth;
     this.sweeperClearNeedsExit=robot.team==='blue'?b.y>=ownAreaBoundary:b.y<=ownAreaBoundary;
-    robot.clearImpulse=appliedImpulse; robot.clearCooldown=0.5; robot.action='KICK'; robot.lastKickAt=this.state.elapsed; robot.kickPower=appliedImpulse; robot.kickDirectionX=0; robot.kickDirectionY=attackY;
-    this.recordEvent({type:'robot-ball-collision',ids:[robot.id],x:b.x,y:b.y,impulse:appliedImpulse,vxBefore:beforeX,vyBefore:beforeY,vxAfter:b.vx,vyAfter:b.vy,reason:'goalkeeper physical contact strong clear'});
-    this.recordEvent({type:'kick',ids:[robot.id],x:b.x,y:b.y,impulse:appliedImpulse,vyBefore:beforeY,vxBefore:beforeX,vxAfter:b.vx,vyAfter:b.vy,reason:`goalkeeper one-shot clear after physical contact, forward=${attackY.toFixed(3)}`,direction:{x:0,y:attackY},power:appliedImpulse,candidate:robot.id,causeContactTick:this.tickIndex});
+    robot.clearImpulse=appliedImpulse; robot.clearCooldown=0.5; robot.action='KICK'; robot.lastKickAt=this.state.elapsed; robot.kickPower=appliedImpulse; robot.kickDirectionX=unitX; robot.kickDirectionY=unitY;
+    this.recordEvent({type:'robot-ball-collision',ids:[robot.id],x:b.x,y:b.y,impulse:appliedImpulse,vxBefore:beforeX,vyBefore:beforeY,vxAfter:b.vx,vyAfter:b.vy,reason:'goalkeeper physical contact angled punch clear'});
+    this.recordEvent({type:'kick',ids:[robot.id],x:b.x,y:b.y,impulse:appliedImpulse,vyBefore:beforeY,vxBefore:beforeX,vxAfter:b.vx,vyAfter:b.vy,reason:`goalkeeper angled punch after physical contact, angleFromOwnGoalAxis=${(Math.acos(this.clamp(unitY*(-attackY),-1,1))*180/Math.PI).toFixed(1)}`,direction:{x:unitX,y:unitY},power:appliedImpulse,candidate:robot.id,causeContactTick:this.tickIndex});
   }
 
   private tryKick(robot:Robot,nx:number,ny:number){

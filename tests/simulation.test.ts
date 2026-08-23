@@ -243,6 +243,20 @@ describe('MatchSimulation', () => {
     expect(Math.abs(sweeper.moveTargetX-match.field.width/2)).toBeLessThanOrEqual(55);
   });
 
+  it('lets a Sweeper roam toward a mid-own-half ball while retaining a goal-area block target near danger', () => {
+    const match=new MatchSimulation(5154,{blue:['sweeper','striker'],orange:['striker','striker']});
+    match.start(); (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+    const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
+    const homeDistance=Math.hypot(sweeper.x-sweeper.homeX,sweeper.y-sweeper.homeY);
+    for(let tick=0;tick<120;tick++){match.state.ball.x=120;match.state.ball.y=500;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
+    expect(Math.hypot(sweeper.x-sweeper.homeX,sweeper.y-sweeper.homeY)).toBeGreaterThan(homeDistance+80);
+    expect(sweeper.y).toBeGreaterThan(match.field.height/2-SWEEPER_FORWARD_LIMIT);
+    expect(sweeper.target).toBe('GOAL_BLOCK');
+    match.state.ball.x=270;match.state.ball.y=730;match.state.ball.vy=140;
+    match.tick(1/60);
+    expect(sweeper.moveTargetY).toBeLessThanOrEqual(match.field.height-GOAL_AREA.depth);
+  });
+
   it('moves an attacking Sweeper outside the Goal Area and returns after the threat clears', () => {
     for(const team of ['blue','orange'] as const){
       const match=new MatchSimulation(616,{blue:['sweeper','striker'],orange:['sweeper','striker']});
@@ -273,8 +287,8 @@ describe('MatchSimulation', () => {
       match.state.robots.filter(robot=>robot.id!==keeper.id).forEach(robot=>{robot.x=80;robot.y=430;});
       keeper.x=270; keeper.y=keeper.homeY; match.state.ball.x=270; match.state.ball.y=team==='blue'?keeper.homeY-30:keeper.homeY+30; match.state.ball.vx=0; match.state.ball.vy=attackY*-100;
       match.tick(1/60);
-      const events=match.getEvents().filter(event=>event.ids?.includes(keeper.id)); const collision=events.find(event=>event.type==='robot-ball-collision'&&event.reason?.includes('goalkeeper physical')); const clear=events.find(event=>event.type==='kick'&&event.reason?.includes('goalkeeper one-shot'));
-      expect(collision).toBeDefined(); expect(clear).toBeDefined(); expect(clear?.causeContactTick).toBe(clear?.tick); expect(clear?.power).toBeGreaterThan(1000); expect((clear?.vyAfter??0)*attackY).toBeGreaterThan(900);
+      const events=match.getEvents().filter(event=>event.ids?.includes(keeper.id)); const collision=events.find(event=>event.type==='robot-ball-collision'&&event.reason?.includes('goalkeeper physical')); const clear=events.find(event=>event.type==='kick'&&event.reason?.includes('goalkeeper angled punch'));
+      expect(collision).toBeDefined(); expect(clear).toBeDefined(); expect(clear?.causeContactTick).toBe(clear?.tick); expect(clear?.power).toBeGreaterThan(1000); expect(Math.hypot(clear?.vxAfter??0,clear?.vyAfter??0)).toBeGreaterThan(900); expect(Math.abs(Math.acos(Math.max(-1,Math.min(1,(clear?.direction?.y??0)*attackY)))*180/Math.PI)).toBeLessThan(90);
     }
   });
 

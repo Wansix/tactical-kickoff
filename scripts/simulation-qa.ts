@@ -49,10 +49,11 @@ function run(seed:number):MatchReport{
   const goals=events.filter(e=>e.type==='goal');
   const blueGoals=goals.filter(e=>e.decision?.scoringTeam==='blue').length,orangeGoals=goals.filter(e=>e.decision?.scoringTeam==='orange').length;
   const signature=[match.state.score.blue,match.state.score.orange,events.filter(e=>e.type==='kick').length,events.filter(e=>e.type==='wall-bounce').length,Math.round(Math.max(...frames.map(f=>f.ball.x))-Math.min(...frames.map(f=>f.ball.x))),Math.round(Math.max(...frames.map(f=>f.ball.y))-Math.min(...frames.map(f=>f.ball.y)))].join(':');
-  const firstKick=events.find(e=>e.type==='kick');
+  const attackingKicks=events.filter(e=>e.type==='kick'&&e.reason?.startsWith('kick:'));
+  const firstKick=attackingKicks[0];
   const firstKickTeam=firstKick?.ids?.[0].startsWith('blue')?'blue':firstKick?.ids?.[0].startsWith('orange')?'orange':'none';
   const kicks=events.filter(e=>e.type==='kick');
-  const wrong=(team:Team)=>kicks.filter(e=>e.ids?.[0].startsWith(team)&&((team==='blue'&&e.vyAfter!>=0)||(team==='orange'&&e.vyAfter!<=0))).length;
+  const wrong=(team:Team)=>attackingKicks.filter(e=>e.ids?.[0].startsWith(team)&&((team==='blue'&&e.vyAfter!>=0)||(team==='orange'&&e.vyAfter!<=0))).length;
   const goalPrecedingKickTeams=goals.map(goal=>kicks.filter(kick=>kick.tick<=goal.tick).at(-1)?.ids?.[0].split('-')[0]??'none');
   const corners=[{x:18,y:18},{x:match.field.width-18,y:18},{x:18,y:match.field.height-18},{x:match.field.width-18,y:match.field.height-18}]; let cornerRun=0,maxCornerLowSpeedRun=0;
   for(const frame of frames){const nearCorner=corners.some(c=>Math.hypot(frame.ball.x-c.x,frame.ball.y-c.y)<75);const lowSpeed=Math.hypot(frame.ball.vx,frame.ball.vy)<20&&frame.goalResetTimer===0&&frame.elapsed>5;if(nearCorner&&lowSpeed)cornerRun++;else cornerRun=0;maxCornerLowSpeedRun=Math.max(maxCornerLowSpeedRun,cornerRun);}
@@ -64,7 +65,9 @@ function run(seed:number):MatchReport{
 function defensiveScenario(team:Team){
   const match=new MatchSimulation(77,{blue:['bulwark','bulwark','goalkeeper'],orange:['bulwark','bulwark','goalkeeper']}); match.start();
   match.state.ball.x=270; match.state.ball.y=team==='blue'?640:220; match.state.ball.vy=team==='blue'?80:-80;
-  for(let i=0;i<90;i++) match.tick(1/60);
+  // 3v3 defensive formation starts both bulwarks on the goal-line lanes;
+  // observe the physical closing/contact path for three seconds, not only kickoff alignment.
+  for(let i=0;i<180;i++) match.tick(1/60);
   const contacts=match.getEvents().filter(e=>e.type==='robot-ball-collision'&&e.ids?.some(id=>id.startsWith(`${team}-`))).length;
   const concededGoals=match.getEvents().filter(e=>e.type==='goal'&&e.decision?.scoringTeam!==team).length;
   return {contacts,goals:concededGoals};
