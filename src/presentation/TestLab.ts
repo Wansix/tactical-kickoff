@@ -5,6 +5,7 @@ export type BodyPreset='standard'|'light'|'heavy'|'wide'|'kick-plate';
 type Brain=Exclude<RobotArchetype,'goalkeeper'>;
 export interface LabConfig { blueBrain:Brain; blueBody:BodyPreset; orangeBrain:Brain; orangeBody:BodyPreset; scenario:string; }
 const labels:Record<string,string>={striker:'Striker Brain',sweeper:'Sweeper Brain',scout:'Scout Brain',dribbler:'Dribbler Brain',cannon:'Cannon Brain',bulwark:'Anchor Brain'};
+const brainDescriptions:Record<string,string>={striker:'공을 압박하고 빈틈이 보이면 공격 방향으로 슛합니다.',sweeper:'자기 골대와 공 사이를 지키며 위협을 걷어냅니다.',scout:'공의 이동 경로를 예측해 먼저 도착하려고 합니다.',dribbler:'공을 짧게 여러 번 접촉하며 운반을 시도합니다.',cannon:'좋은 각도와 거리가 나오면 강한 슛을 우선합니다.',bulwark:'뒤쪽을 지키며 위험한 공을 안전한 방향으로 정리합니다.'};
 export const BODY_PROFILES:Record<BodyPreset,{mass:number;maxSpeed:number;acceleration:number;radius:number;label:string}>={
   standard:{mass:2,maxSpeed:460,acceleration:2000,radius:20,label:'Standard'},
   light:{mass:1.2,maxSpeed:560,acceleration:2400,radius:18,label:'Light Frame'},
@@ -20,15 +21,16 @@ export class TestLab {
   private history:Array<{brain:string;body:string;opponentBrain:string;opponentBody:string;scenario:string;finalX:number;finalY:number;speed:number;contacts:number;kicks:number;anomalies:number;actions:string;reasons:string}>=[];
   private onConfig?: (config:LabConfig)=>void;
   private onMode?: (active:boolean)=>void;
-  constructor(host:HTMLElement,onConfig?:(config:LabConfig)=>void,onMode?:(active:boolean)=>void){
-    this.onConfig=onConfig; this.onMode=onMode;
+  private onStart?: ()=>void;
+  constructor(host:HTMLElement,onConfig?:(config:LabConfig)=>void,onMode?:(active:boolean)=>void,onStart?:()=>void){
+    this.onConfig=onConfig; this.onMode=onMode; this.onStart=onStart;
     const menu=document.createElement('button'); menu.className='lab-menu-button'; menu.textContent='🧪 TEST LAB · 실제 1v1 움직임'; menu.onclick=()=>{this.root.hidden=!this.root.hidden; const active=!this.root.hidden; menu.textContent=active?'← 경기 화면으로 돌아가기':'🧪 TEST LAB · 실제 1v1 움직임'; for(const child of Array.from(host.children)){if(child!==menu&&child!==this.root)(child as HTMLElement).hidden=active;} this.onMode?.(active); if(active)this.syncVisual();}; host.prepend(menu);
     this.root=document.createElement('section');
     this.root.className='test-lab panel';
     this.root.innerHTML=`<h2>Robot Test Lab · 실제 1v1 경기장</h2><p class="hint">경기장에는 내 로봇 1대와 상대 로봇 1대만 놓입니다. 양쪽 Brain/Body를 바꾸고 실제 움직임을 관찰하세요.</p>
-      <div class="lab-grid"><label>내 Brain <select data-lab="brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select></label>
+      <div class="lab-grid"><label>내 Brain <select data-lab="brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select><small data-lab="brain-help"></small></label>
       <label>내 Body <select data-lab="body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label>
-      <label>상대 Brain <select data-lab="opponent-brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select></label>
+      <label>상대 Brain <select data-lab="opponent-brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select><small data-lab="opponent-brain-help"></small></label>
       <label>상대 Body <select data-lab="opponent-body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label>
       <label>Scenario <select data-lab="scenario"><option value="approach">정면 공 접근</option><option value="threat">자기 골대 위협</option><option value="wall">벽 반사</option><option value="contact">접촉·킥</option></select></label>
       <label>Seed <input data-lab="seed" type="number" value="2025" min="1" step="1"></label></div>`+`<div class="lab-actions"><button data-lab="run">▶ 1v1 실행</button><button data-lab="repeat">↻ 동일 seed 재실행</button><button data-lab="clear">지우기</button></div><div data-lab="report" class="lab-report" aria-live="polite">실행 대기</div>`;
@@ -37,6 +39,13 @@ export class TestLab {
     this.root.querySelector<HTMLButtonElement>('[data-lab="run"]')!.onclick=()=>this.run();
     this.root.querySelector<HTMLButtonElement>('[data-lab="repeat"]')!.onclick=()=>this.repeat();
     this.root.querySelector<HTMLButtonElement>('[data-lab="clear"]')!.onclick=()=>{this.last=undefined;this.report.textContent='실행 대기';};
+    this.root.querySelectorAll<HTMLSelectElement>('[data-lab="brain"],[data-lab="opponent-brain"]').forEach(select=>select.onchange=()=>this.updateHelp());
+    this.updateHelp();
+  }
+  private updateHelp(){
+    const brain=this.value<Brain>('brain'); const opponent=this.value<Brain>('opponent-brain');
+    this.root.querySelector<HTMLElement>('[data-lab="brain-help"]')!.textContent=brainDescriptions[brain];
+    this.root.querySelector<HTMLElement>('[data-lab="opponent-brain-help"]')!.textContent=brainDescriptions[opponent];
   }
   private value<T extends string>(key:string){return this.root.querySelector<HTMLSelectElement>(`[data-lab="${key}"]`)!.value as T;}
   private makeScenario():ScenarioSpec{
@@ -51,9 +60,9 @@ export class TestLab {
   }
   private syncVisual(){this.onConfig?.({blueBrain:this.value<Brain>('brain'),blueBody:this.value<BodyPreset>('body'),orangeBrain:this.value<Brain>('opponent-brain'),orangeBody:this.value<BodyPreset>('opponent-body'),scenario:this.value('scenario')});}
   private run():ScenarioRun{
-    this.syncVisual(); const spec=this.makeScenario(); const arena=new SimulationTestArena(spec); this.configureBody(arena); arena.run(); this.last=arena.result(); this.record(this.last); this.render(this.last,undefined); return this.last;
+    this.syncVisual(); this.onStart?.(); const spec=this.makeScenario(); const arena=new SimulationTestArena(spec); this.configureBody(arena); arena.run(); this.last=arena.result(); this.record(this.last); this.render(this.last,undefined); return this.last;
   }
-  private repeat(){this.syncVisual();const first=this.last;if(!first){this.run();return;}const arena=new SimulationTestArena(first.scenario);this.configureBody(arena);arena.run();const next=arena.result();this.render(next,replayEquivalent(first,next));this.record(next);this.last=next;}
+  private repeat(){this.syncVisual();this.onStart?.();const first=this.last;if(!first){this.run();return;}const arena=new SimulationTestArena(first.scenario);this.configureBody(arena);arena.run();const next=arena.result();this.render(next,replayEquivalent(first,next));this.record(next);this.last=next;}
   private record(run:ScenarioRun){
     const robot=run.state.robots.find(candidate=>candidate.id==='blue-0'); if(!robot)return;
     const frames=run.telemetry.flatMap(frame=>frame.robots).filter(candidate=>candidate.id==='blue-0');

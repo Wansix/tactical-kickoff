@@ -39,7 +39,7 @@ const bindControls=(scene:GameScene)=>{
   controls.forEach((control)=>control.disabled=false);speed.disabled=false;
 };
 const scene=new GameScene(bindControls);
-new TestLab(document.querySelector('aside')!,config=>scene.configureLab(config.blueBrain,config.blueBody,config.orangeBrain,config.orangeBody),active=>scene.setLabMode(active));
+new TestLab(document.querySelector('aside')!,config=>scene.configureLab(config.blueBrain,config.blueBody,config.orangeBrain,config.orangeBody),active=>scene.setLabMode(active),()=>scene.start());
 new Phaser.Game({type:Phaser.AUTO,width:580,height:1100,parent:'game',backgroundColor:'#08111d',scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:580,height:1100},scene:[scene]});
 if(import.meta.env.DEV){
   const configureSweeper=()=>{const state=scene.getState() as any;const blue=state.robots.find((r:any)=>r.id==='blue-1');const orange=state.robots.find((r:any)=>r.id==='orange-1');for(const r of [blue,orange]){if(r){r.archetype='sweeper';r.role='sweeper';r.shape='square';r.vx=0;r.vy=0;r.action='COVER';r.target='BALL';r.sweeperState='HOLD_POST';r.backpedal=false;r.clearImpulse=0;r.clearCooldown=0;}}if(blue){blue.x=270;blue.y=650;blue.moveTargetX=270;blue.moveTargetY=650;blue.facingX=0;blue.facingY=-1;}if(orange){orange.x=270;orange.y=210;orange.moveTargetX=270;orange.moveTargetY=210;orange.facingX=0;orange.facingY=1;}state.ball.x=270;state.ball.y=560;state.ball.vx=0;state.ball.vy=180;state.status='running';};
