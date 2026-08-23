@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MatchSimulation, KICK_RANGE_PROFILES } from '../src/simulation/MatchSimulation';
+import { MatchSimulation, GOAL_AREA, SWEEPER_FORWARD_LIMIT, KICK_RANGE_PROFILES } from '../src/simulation/MatchSimulation';
 import { configureStriker1v1 } from './fixtures';
 
 describe('MatchSimulation', () => {
@@ -235,6 +235,17 @@ describe('MatchSimulation', () => {
     expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetY).toBe(120);
   });
 
+  it('lets a Sweeper advance beyond the Goal Area while preserving the goal angle', () => {
+    const match = new MatchSimulation(5153, {blue:['sweeper','striker'], orange:['striker','striker']});
+    match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+    const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
+    match.state.ball.x=270; match.state.ball.y=430; match.state.ball.vx=0; match.state.ball.vy=0;
+    match.tick(1/60);
+    expect(sweeper.moveTargetY).toBeLessThan(match.field.height-GOAL_AREA.depth);
+    expect(sweeper.moveTargetY).toBeGreaterThan(match.field.height/2-SWEEPER_FORWARD_LIMIT);
+  });
+
   it('clears a near-miss ball inside the Sweeper interception reach', () => {
     const match = new MatchSimulation(5152, {blue:['bulwark','striker'], orange:['striker','striker']});
     match.start();
@@ -263,6 +274,7 @@ describe('MatchSimulation', () => {
     expect(clear!.power).toBeGreaterThan(500);
     expect(sweeper.clearImpulse).toBeGreaterThan(0);
     for (let tick = 0; tick < 30; tick++) match.tick(1/60);
+    expect(Math.hypot(match.state.ball.vx,match.state.ball.vy)).toBeLessThanOrEqual(360);
     expect(match.state.ball.y).toBeLessThan(match.field.height/2);
     for (let tick = 0; tick < 120; tick++) { match.state.ball.vx = 0; match.state.ball.vy = 0; match.tick(1/60); }
     expect(match.getTelemetry().some(frame => frame.robots.find(robot => robot.id === sweeper.id)?.sweeperState === 'RETURN_TO_POST')).toBe(true);
