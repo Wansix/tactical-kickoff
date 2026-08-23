@@ -13,6 +13,16 @@ describe('Robot Test Lab scenarios',()=>{
     const blocking=detectAnomalies(run).filter(anomaly=>['non-finite','out-of-bounds','kick-without-cause'].includes(anomaly.kind));
     expect(blocking).toEqual([]);
   });
+  it('runs every brain as a visible 1v1 pair',()=>{
+    for(const [index,brain] of brains.entries()){
+      const opponent=brains[(index+1)%brains.length];
+      const run=new SimulationTestArena({...scenario(brain,300+index),id:`1v1-${brain}-vs-${opponent}`,composition:{blue:[brain],orange:[opponent]} as any}).run();
+      expect(run.state.robots).toHaveLength(2);
+      expect(run.state.robots.map(robot=>robot.archetype)).toEqual([brain,opponent]);
+      expect(run.telemetry.some(frame=>frame.robots.some(robot=>robot.action!=='RESET'))).toBe(true);
+      expect(detectAnomalies(run)).toEqual([]);
+    }
+  });
   it('replays the same Brain scenario identically',()=>{
     const spec=scenario('sweeper',77);
     expect(replayEquivalent(new SimulationTestArena(spec).run(),new SimulationTestArena(spec).run())).toBe(true);

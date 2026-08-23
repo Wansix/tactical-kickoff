@@ -14,6 +14,11 @@ export class GameScene extends Phaser.Scene {
   private kickRangeGraphics!: Phaser.GameObjects.Graphics;
   private debugEnabled=false;
   private speed = 1;
+  private labMode=false;
+  private labBrain:RobotArchetype='striker';
+  private labOpponentBrain:RobotArchetype='striker';
+  private labBody:'standard'|'light'|'heavy'|'wide'|'kick-plate'='standard';
+  private labOpponentBody:'standard'|'light'|'heavy'|'wide'|'kick-plate'='standard';
   private field = { x: 20, y: 110, w: 540, h: 860 };
   private onReady: ((scene: GameScene) => void) | undefined;
   private onFinish: (() => void) | undefined;
@@ -44,8 +49,21 @@ export class GameScene extends Phaser.Scene {
   setMatchSpeed(speed:number):void { this.speed=speed; }
 
   swap(team:Team):void { this.sim.swapComposition(team); for(const r of this.sim.state.robots.filter(robot=>robot.team===team)){ this.robotGraphics.get(r.id)?.destroy(); this.robotGraphics.delete(r.id); this.createRobot(r); } this.render(); }
-  configureRoster(team:Team, archetypes:[RobotArchetype,RobotArchetype], slots:[StartSlot,StartSlot]):void { this.selectedComposition[team]=[...archetypes,'goalkeeper']; this.sim.setComposition(team,archetypes,slots); for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
-  reset():void { this.sim=new MatchSimulation(2025,this.selectedComposition);this.sim.setKickDebugLine(this.debugEnabled); for(const c of Array.from(this.robotGraphics.values()))c.destroy();this.robotGraphics.clear();for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
+  configureRoster(team:Team, archetypes:[RobotArchetype,RobotArchetype], slots:[StartSlot,StartSlot]):void { this.labMode=false; this.selectedComposition[team]=[...archetypes,'goalkeeper']; this.sim.setComposition(team,archetypes,slots); for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
+  setLabMode(enabled:boolean):void { this.labMode=enabled; if(enabled)this.configureLab(this.labBrain,this.labBody,this.labOpponentBrain,this.labOpponentBody); else this.reset(); }
+  configureLab(brain:RobotArchetype,body:'standard'|'light'|'heavy'|'wide'|'kick-plate',opponentBrain:RobotArchetype='striker',opponentBody:'standard'|'light'|'heavy'|'wide'|'kick-plate'='standard'):void {
+    this.labMode=true; this.labBrain=brain; this.labBody=body; this.labOpponentBrain=opponentBrain; this.labOpponentBody=opponentBody;
+    this.sim=new MatchSimulation(2025,{blue:[brain],orange:[opponentBrain]});
+    this.applyLabBody(); this.sim.setKickDebugLine(this.debugEnabled);
+    for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render();
+  }
+  private applyLabBody():void {
+    const profiles={standard:{mass:2,maxSpeed:460,acceleration:2000,radius:20},light:{mass:1.2,maxSpeed:560,acceleration:2400,radius:18},heavy:{mass:3.8,maxSpeed:360,acceleration:1300,radius:23},wide:{mass:2.4,maxSpeed:420,acceleration:1700,radius:28},'kick-plate':{mass:2.1,maxSpeed:440,acceleration:1900,radius:20}};
+    const profile=profiles[this.labBody]; const opponentProfile=profiles[this.labOpponentBody];
+    const robot=this.sim.state.robots.find(candidate=>candidate.id==='blue-0'); const opponent=this.sim.state.robots.find(candidate=>candidate.id==='orange-0');
+    if(robot)Object.assign(robot,profile); if(opponent)Object.assign(opponent,opponentProfile);
+  }
+  reset():void { if(this.labMode){this.configureLab(this.labBrain,this.labBody,this.labOpponentBrain,this.labOpponentBody);return;} this.sim=new MatchSimulation(2025,this.selectedComposition);this.sim.setKickDebugLine(this.debugEnabled); for(const c of Array.from(this.robotGraphics.values()))c.destroy();this.robotGraphics.clear();for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
   toggleDebug():boolean { this.debugEnabled=!this.debugEnabled; this.sim.setKickDebugLine(this.debugEnabled); this.render(); return this.debugEnabled; }
   inspect(){return this.sim.state.robots.map(robot=>robotDebug(robot));}
   getTelemetry(){return this.sim.getTelemetry();}
