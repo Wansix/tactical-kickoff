@@ -6,7 +6,7 @@ export interface ScenarioSpec {
   durationTicks:number;
   ball?:{x:number;y:number;vx?:number;vy?:number};
   robots?:Array<{id:string;x:number;y:number;vx?:number;vy?:number;facingX?:number;facingY?:number;action?:Action;target?:string}>;
-  composition?:{blue?:['striker'|'bulwark'|'scout'|'dribbler'|'cannon'|'sweeper','striker'|'bulwark'|'scout'|'dribbler'|'cannon'|'sweeper'];orange?:['striker'|'bulwark'|'scout'|'dribbler'|'cannon'|'sweeper','striker'|'bulwark'|'scout'|'dribbler'|'cannon'|'sweeper']};
+  composition?:{blue?:RobotArchetype[];orange?:RobotArchetype[]};
 }
 
 export interface ScenarioRun {
