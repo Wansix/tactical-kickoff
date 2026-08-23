@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MatchSimulation, type Team, type RobotArchetype, type StartSlot } from '../src/simulation/MatchSimulation';
+import { MatchSimulation, GOAL_AREA, type Team, type RobotArchetype, type StartSlot } from '../src/simulation/MatchSimulation';
 
 describe('3v3 roster and pre-match composition', () => {
   it('creates a deterministic goalkeeper plus two field robots per team', () => {
@@ -14,17 +14,21 @@ describe('3v3 roster and pre-match composition', () => {
     expect(match.snapshot()).toEqual(new MatchSimulation(303, composition).snapshot());
   });
 
-  it('keeps the goalkeeper on a centered home post while the ball moves', () => {
+  it('tracks the ball laterally on the goal line without leaving the goal mouth', () => {
     const match = new MatchSimulation(304, MatchSimulation.default3v3Composition());
     match.start();
     const goalkeeper = match.state.robots.find(robot => robot.team === 'blue' && robot.archetype === 'goalkeeper')!;
+    for (const robot of match.state.robots) if (robot !== goalkeeper) { robot.maxSpeed=0; robot.acceleration=0; }
     const homeY = goalkeeper.homeY;
-    match.state.ball.x = 80;
-    match.state.ball.y = 120;
+    match.state.ball.x = 80; match.state.ball.y = 120;
     for (let tick = 0; tick < 120; tick++) match.tick(1 / 60);
-    expect(goalkeeper.archetype).toBe('goalkeeper');
-    expect(goalkeeper.x).toBe(270);
-    expect(goalkeeper.moveTargetX).toBe(270);
+    const leftX = goalkeeper.x;
+    match.state.ball.x = 460;
+    for (let tick = 0; tick < 180; tick++) match.tick(1 / 60);
+    expect(goalkeeper.x).toBeGreaterThan(leftX + 20);
+    expect(goalkeeper.x).toBeGreaterThanOrEqual(GOAL_AREA.left + 18);
+    expect(goalkeeper.x).toBeLessThanOrEqual(GOAL_AREA.right - 18);
+    expect(goalkeeper.moveTargetX).not.toBe(270);
     expect(goalkeeper.y).toBe(homeY);
     expect(goalkeeper.action).toBe('COVER');
   });

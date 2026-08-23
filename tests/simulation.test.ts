@@ -235,15 +235,16 @@ describe('MatchSimulation', () => {
     expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetY).toBe(120);
   });
 
-  it('lets a Sweeper advance beyond the Goal Area while preserving the goal angle', () => {
+  it('lets a Sweeper enter the own Goal Area while preserving the centered goal angle', () => {
     const match = new MatchSimulation(5153, {blue:['sweeper','striker'], orange:['striker','striker']});
     match.start();
     (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
     const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
     match.state.ball.x=270; match.state.ball.y=430; match.state.ball.vx=0; match.state.ball.vy=0;
     match.tick(1/60);
-    expect(sweeper.moveTargetY).toBeLessThan(match.field.height-GOAL_AREA.depth);
+    expect(sweeper.moveTargetY).toBeGreaterThanOrEqual(match.field.height-GOAL_AREA.depth+18);
     expect(sweeper.moveTargetY).toBeGreaterThan(match.field.height/2-SWEEPER_FORWARD_LIMIT);
+    expect(Math.abs(sweeper.moveTargetX-match.field.width/2)).toBeLessThanOrEqual(55);
   });
 
   it('clears a near-miss ball inside the Sweeper interception reach', () => {

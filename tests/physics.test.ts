@@ -23,18 +23,27 @@ describe('physics-first simulation contract', () => {
     const match=new MatchSimulation(104);
     prepareStrikerKick(match);
     const kick=match.getEvents().find(event=>event.type==='kick');
-    expect(kick?.power).toBeGreaterThanOrEqual(300);
+    expect(kick?.power).toBeGreaterThanOrEqual(250);
     expect(kick?.vyAfter).toBeLessThan(-250);
     match.tick(1/30);
     expect(match.state.ball.y).toBeLessThan(400);
   });
 
+  it('records the actual applied kick impulse direction, not only the aim direction', () => {
+    const match=new MatchSimulation(106); prepareStrikerKick(match);
+    const kick=match.getEvents().find(event=>event.type==='kick')!;
+    const dx=(kick.vxAfter??0)-(kick.vxBefore??0),dy=(kick.vyAfter??0)-(kick.vyBefore??0),length=Math.hypot(dx,dy)||1;
+    expect(kick.direction?.x).toBeCloseTo(dx/length,8);
+    expect(kick.direction?.y).toBeCloseTo(dy/length,8);
+    expect(kick.impulse).toBeCloseTo(Math.hypot(dx,dy),8);
+    expect(kick.power).toBeCloseTo(kick.impulse??0,8);
+  });
   it('debug kick mode draws and applies only the robot center line', () => {
     const match=new MatchSimulation(105); match.setKickDebugLine(true); prepareStrikerKick(match);
     const kick=match.getEvents().find(event=>event.type==='kick');
     const robot=match.state.robots.find(candidate=>candidate.id===kick?.ids?.[0]);
-    expect(kick?.direction?.x).toBe(robot?.facingX);
-    expect(kick?.direction?.y).toBe(robot?.facingY);
+    expect(kick?.direction?.x).toBeCloseTo(robot?.facingX??0,8);
+    expect(kick?.direction?.y).toBeCloseTo(robot?.facingY??0,8);
     expect(Math.abs((kick?.vxAfter??0)*robot!.facingY-(kick?.vyAfter??0)*robot!.facingX)).toBeLessThan(1e-9);
   });
   it('escapes each physical corner with one bounded recovery', () => {
@@ -44,6 +53,16 @@ describe('physics-first simulation contract', () => {
       for(let tick=0;tick<60;tick++) match.tick(1/60);
       expect(match.getEvents().filter(event=>event.type==='stuck-recovery')).toHaveLength(1);
     }
+  });
+
+  it('recovers a low-speed ball trapped just inside a side wall', () => {
+    const match=new MatchSimulation(206); match.start(); (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=0;
+    for(const robot of match.state.robots){robot.maxSpeed=0;robot.acceleration=0;}
+    match.state.ball.x=38; match.state.ball.y=430; match.state.ball.vx=0; match.state.ball.vy=0; (match as any).lastBallX=38; (match as any).lastBallY=430;
+    for(let tick=0;tick<60;tick++) match.tick(1/60);
+    const recovery=match.getEvents().find(event=>event.type==='stuck-recovery'&&event.reason?.includes('side-wall'));
+    expect(recovery).toBeDefined();
+    expect(match.state.ball.vx).toBeGreaterThan(0);
   });
 
   it('resets a goal stationary inside the kickoff state', () => {
