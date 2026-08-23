@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MatchSimulation, GOAL_AREA, KICK_RANGE_PROFILES } from '../src/simulation/MatchSimulation';
+import { MatchSimulation, GOAL_AREA, SWEEPER_FORWARD_LIMIT, KICK_RANGE_PROFILES } from '../src/simulation/MatchSimulation';
 import { configureStriker1v1 } from './fixtures';
 
 describe('MatchSimulation', () => {
@@ -239,6 +239,13 @@ describe('MatchSimulation', () => {
     expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetY).toBe(128);
   });
 
+  it('lets a Sweeper advance beyond the Goal Area while preserving the goal angle', () => {
+    const match=new MatchSimulation(5153,{blue:['sweeper','striker'],orange:['striker','striker']}); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+    const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!; match.state.ball.x=270; match.state.ball.y=430; match.tick(1/60);
+    expect(sweeper.moveTargetY).toBeLessThan(match.field.height-GOAL_AREA.depth);
+    expect(sweeper.moveTargetY).toBeGreaterThan(match.field.height/2-SWEEPER_FORWARD_LIMIT);
+  });
   it('patrols a wide symmetric lateral lane while preparing at the home post', () => {
     const match=new MatchSimulation(9191,{blue:['sweeper','striker'],orange:['striker','striker']});
     match.start(); (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false;

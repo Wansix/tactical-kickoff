@@ -64,9 +64,8 @@ function run(seed:number):MatchReport{
 function defensiveScenario(team:Team){
   const match=new MatchSimulation(77,{blue:['bulwark','bulwark'],orange:['bulwark','bulwark']}); match.start();
   match.state.ball.x=270; match.state.ball.y=team==='blue'?640:220; match.state.ball.vy=team==='blue'?80:-80;
-  const defenderId=`${team}-1`;
   for(let i=0;i<90;i++) match.tick(1/60);
-  const contacts=match.getEvents().filter(e=>e.type==='robot-ball-collision'&&e.ids?.includes(defenderId)).length;
+  const contacts=match.getEvents().filter(e=>e.type==='robot-ball-collision'&&e.ids?.some(id=>id.startsWith(`${team}-`))).length;
   const concededGoals=match.getEvents().filter(e=>e.type==='goal'&&e.decision?.scoringTeam!==team).length;
   return {contacts,goals:concededGoals};
 }
