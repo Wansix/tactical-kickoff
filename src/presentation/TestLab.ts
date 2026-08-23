@@ -52,7 +52,7 @@ export class TestLab {
     const brain=this.value<Brain>('brain'); const opponentBrain=this.value<Brain>('opponent-brain'); const body=this.value<BodyPreset>('body'); const scenario=this.value<'approach'|'threat'|'wall'|'contact'>('scenario');
     const seed=Number(this.root.querySelector<HTMLInputElement>('[data-lab="seed"]')!.value)||2025;
     const ball=scenario==='threat'?{x:270,y:760,vx:0,vy:260}:scenario==='wall'?{x:40,y:430,vx:-300,vy:0}:scenario==='contact'?{x:270,y:700,vx:0,vy:180}:{x:270,y:570,vx:0,vy:0};
-    return {...{id:`lab-${brain}-vs-${opponentBrain}-${scenario}`,seed,durationTicks:360,composition:{blue:[brain,brain],orange:[opponentBrain,opponentBrain]},ball,robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,action:'RESET',target:'BALL'}]},bodyProfile:body} as ScenarioSpec & {bodyProfile:BodyPreset};
+    return {...{id:`lab-${brain}-vs-${opponentBrain}-${scenario}`,seed,durationTicks:360,composition:{blue:[brain],orange:[opponentBrain]},ball,robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,action:'RESET',target:'BALL'}]},bodyProfile:body} as ScenarioSpec & {bodyProfile:BodyPreset};
   }
   private configureBody(arena:SimulationTestArena){
     const apply=(id:string,body:BodyPreset)=>{const profile=BODY_PROFILES[body]; const robot=arena.simulation.state.robots.find(candidate=>candidate.id===id); if(robot)Object.assign(robot,profile);};

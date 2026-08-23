@@ -1,4 +1,4 @@
-import { MatchSimulation, GOAL_GEOMETRY, type Action, type MatchState, type Robot, type SimulationEvent, type Team, type TelemetryFrame } from './MatchSimulation';
+import { MatchSimulation, GOAL_GEOMETRY, type Action, type MatchState, type Robot, type RobotArchetype, type SimulationEvent, type Team, type TelemetryFrame } from './MatchSimulation';
 
 export interface ScenarioSpec {
   id:string;

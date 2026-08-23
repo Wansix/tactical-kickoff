@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SimulationTestArena, detectAnomalies, replayEquivalent, replayCheckpoint, type ScenarioSpec } from '../src/simulation/SimulationQA';
+import { BODY_PROFILES, type BodyPreset } from '../src/presentation/TestLab';
 
 type Brain='striker'|'sweeper'|'scout'|'dribbler'|'cannon'|'bulwark';
 const brains:Brain[]=['striker','sweeper','scout','dribbler','cannon','bulwark'];
@@ -21,6 +22,18 @@ describe('Robot Test Lab scenarios',()=>{
       expect(run.state.robots.map(robot=>robot.archetype)).toEqual([brain,opponent]);
       expect(run.telemetry.some(frame=>frame.robots.some(robot=>robot.action!=='RESET'))).toBe(true);
       expect(detectAnomalies(run)).toEqual([]);
+    }
+  });
+  it('covers every Brain × Body pair as an isolated 1v1 contract',()=>{
+    const bodies:BodyPreset[]=['standard','light','heavy','wide','kick-plate'];
+    const shapes:Record<Brain,string>={striker:'circle',sweeper:'square',scout:'diamond',dribbler:'circle',cannon:'hex',bulwark:'square'};
+    for(const [brainIndex,brain] of brains.entries())for(const [bodyIndex,body] of bodies.entries()){
+      const opponent=brains[(brainIndex+1)%brains.length]; const opponentBody=bodies[(bodyIndex+1)%bodies.length];
+      const spec:ScenarioSpec={id:`matrix-${brain}-${body}`,seed:5000+brainIndex*10+bodyIndex,durationTicks:360,composition:{blue:[brain],orange:[opponent]},ball:{x:270,y:570,vx:0,vy:0}};
+      const first=new SimulationTestArena(spec); Object.assign(first.simulation.state.robots.find(robot=>robot.id==='blue-0')!,BODY_PROFILES[body]); Object.assign(first.simulation.state.robots.find(robot=>robot.id==='orange-0')!,BODY_PROFILES[opponentBody]); const run=first.run();
+      expect(run.state.robots).toHaveLength(2); expect(run.state.robots[0].shape).toBe(shapes[brain]); expect(run.state.robots[0].mass).toBe(BODY_PROFILES[body].mass); expect(run.state.robots[1].mass).toBe(BODY_PROFILES[opponentBody].mass);
+      expect(run.telemetry.some(frame=>frame.robots.some(robot=>robot.action!=='RESET'))).toBe(true); expect(detectAnomalies(run)).toEqual([]);
+      const second=new SimulationTestArena(spec); Object.assign(second.simulation.state.robots.find(robot=>robot.id==='blue-0')!,BODY_PROFILES[body]); Object.assign(second.simulation.state.robots.find(robot=>robot.id==='orange-0')!,BODY_PROFILES[opponentBody]); expect(replayEquivalent(run,second.run())).toBe(true);
     }
   });
   it('replays the same Brain scenario identically',()=>{
