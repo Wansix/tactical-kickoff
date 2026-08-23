@@ -231,16 +231,77 @@ describe('MatchSimulation', () => {
     expect(match.state.robots.find(robot=>robot.id==='orange-0')!.homeY).toBe(250);
   });
 
-  it('lets a Sweeper enter the own Goal Area while preserving the centered goal angle', () => {
+  it('keeps a Sweeper outside the own Goal Area while preserving the centered defensive angle', () => {
     const match = new MatchSimulation(5153, {blue:['sweeper','striker'], orange:['striker','striker']});
     match.start();
     (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
     const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
     match.state.ball.x=270; match.state.ball.y=700; match.state.ball.vx=0; match.state.ball.vy=0;
     match.tick(1/60);
-    expect(sweeper.moveTargetY).toBeGreaterThanOrEqual(match.field.height-GOAL_AREA.depth+18);
+    expect(sweeper.moveTargetY).toBeLessThanOrEqual(match.field.height-GOAL_AREA.depth-20);
     expect(sweeper.moveTargetY).toBeGreaterThan(match.field.height/2-SWEEPER_FORWARD_LIMIT);
     expect(Math.abs(sweeper.moveTargetX-match.field.width/2)).toBeLessThanOrEqual(55);
+  });
+
+  it('moves an attacking Sweeper outside the Goal Area and returns after the threat clears', () => {
+    for(const team of ['blue','orange'] as const){
+      const match=new MatchSimulation(616,{blue:['sweeper','striker'],orange:['sweeper','striker']});
+      match.start(); (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+      const sweeper=match.state.robots.find(robot=>robot.id===`${team}-0`)!;
+      const attackY=team==='blue'?-1:1; const opponentY=team==='blue'?300:560; const ownY=team==='blue'?700:160;
+      for(let tick=0;tick<120;tick++){match.state.ball.x=270;match.state.ball.y=opponentY;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
+      const attackFrames=match.getTelemetry().map(frame=>frame.robots.find(robot=>robot.id===sweeper.id)!).filter(Boolean);
+      const minOrMax=team==='blue'?Math.min(...attackFrames.map(frame=>frame.y)):Math.max(...attackFrames.map(frame=>frame.y));
+      if(team==='blue')expect(minOrMax).toBeLessThanOrEqual(660);
+      else {expect(minOrMax).toBeGreaterThanOrEqual(200);expect(minOrMax).toBeLessThanOrEqual(610);}
+      expect(attackFrames.some(frame=>frame.target==='ATTACK_SUPPORT')).toBe(true);
+      for(let tick=0;tick<120;tick++){match.state.ball.x=270;match.state.ball.y=ownY;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
+      const safeCenterY=team==='blue'?429:431;
+      const returnDistances:number[]=[];
+      for(let tick=0;tick<240;tick++){match.state.ball.x=270;match.state.ball.y=safeCenterY;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);returnDistances.push(Math.hypot(sweeper.x-sweeper.homeX,sweeper.y-sweeper.homeY));}
+      expect(Math.min(...returnDistances)).toBeLessThanOrEqual(24);
+      expect(['RETURN_TO_POST','HOLD_POST']).toContain(sweeper.sweeperState);
+      expect(sweeper.facingY*attackY).toBeGreaterThan(-1);
+    }
+  });
+
+  it('clears from the goalkeeper only after physical contact with a strong one-shot impulse', () => {
+    for(const team of ['blue','orange'] as const){
+      const match=new MatchSimulation(617,{blue:['striker','striker','goalkeeper'],orange:['striker','striker','goalkeeper']});
+      match.start(); (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+      const keeper=match.state.robots.find(robot=>robot.id===`${team}-2`)!; const attackY=team==='blue'?-1:1;
+      match.state.robots.filter(robot=>robot.id!==keeper.id).forEach(robot=>{robot.x=80;robot.y=430;});
+      keeper.x=270; keeper.y=keeper.homeY; match.state.ball.x=270; match.state.ball.y=team==='blue'?keeper.homeY-30:keeper.homeY+30; match.state.ball.vx=0; match.state.ball.vy=attackY*-100;
+      match.tick(1/60);
+      const events=match.getEvents().filter(event=>event.ids?.includes(keeper.id)); const collision=events.find(event=>event.type==='robot-ball-collision'&&event.reason?.includes('goalkeeper physical')); const clear=events.find(event=>event.type==='kick'&&event.reason?.includes('goalkeeper one-shot'));
+      expect(collision).toBeDefined(); expect(clear).toBeDefined(); expect(clear?.causeContactTick).toBe(clear?.tick); expect(clear?.power).toBeGreaterThan(1000); expect((clear?.vyAfter??0)*attackY).toBeGreaterThan(900);
+    }
+  });
+
+  it('records Goal Area exit damping after a physical defensive clear', () => {
+    const match=new MatchSimulation(618,{blue:['sweeper','striker'],orange:['striker','striker']}); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+    const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!; sweeper.x=270; sweeper.y=730; match.state.ball.x=270; match.state.ball.y=700; match.state.ball.vx=0; match.state.ball.vy=0; sweeper.sweeperState='INTERCEPT';
+    for(let tick=0;tick<60;tick++)match.tick(1/60);
+    const damping=match.getEvents().find(event=>event.type==='goal-area-exit-damping');
+    expect(damping).toBeDefined(); expect(damping?.speedBefore).toBeGreaterThan(360); expect(damping?.speedAfter).toBeLessThanOrEqual(360); expect(damping?.boundary).toBe(680);
+  });
+
+  it('preserves pending Goal Area exit damping across checkpoint restore', () => {
+    const setup=(match:MatchSimulation)=>{
+      match.start(); (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+      const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
+      sweeper.x=270; sweeper.y=730; match.state.ball.x=270; match.state.ball.y=700; match.state.ball.vx=0; match.state.ball.vy=0; sweeper.sweeperState='INTERCEPT';
+      match.tick(1/60);
+    };
+    const original=new MatchSimulation(619,{blue:['sweeper','striker'],orange:['striker','striker']}); setup(original);
+    expect((original.checkpoint() as any).sweeperClearNeedsExit).toBe(true);
+    const checkpoint=original.checkpoint(); const restored=new MatchSimulation(619,{blue:['sweeper','striker'],orange:['striker','striker']}); restored.restoreCheckpoint(checkpoint);
+    original.tick(1/60); restored.tick(1/60);
+    const originalDamping=original.getEvents().filter(event=>event.type==='goal-area-exit-damping');
+    const restoredDamping=restored.getEvents().filter(event=>event.type==='goal-area-exit-damping');
+    expect(restoredDamping).toEqual(originalDamping);
+    expect(restored.snapshot()).toEqual(original.snapshot());
   });
 
   it('does not clear-kick a near-miss ball without physical contact', () => {

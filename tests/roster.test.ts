@@ -39,8 +39,8 @@ describe('3v3 roster and pre-match composition', () => {
     const orangeKeeper = match.state.robots.find(robot => robot.id === 'orange-2')!;
     const blueSweeper = match.state.robots.find(robot => robot.id === 'blue-1')!;
     const orangeSweeper = match.state.robots.find(robot => robot.id === 'orange-1')!;
-    expect(blueKeeper.homeY).toBe(818);
-    expect(orangeKeeper.homeY).toBe(42);
+    expect(blueKeeper.homeY).toBe(832);
+    expect(orangeKeeper.homeY).toBe(28);
     expect(blueKeeper.maxSpeed).toBe(400);
     expect(orangeKeeper.maxSpeed).toBe(400);
     expect(blueSweeper.homeY).toBeLessThan(860 - GOAL_AREA.depth);
