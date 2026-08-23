@@ -81,9 +81,9 @@ export class MatchSimulation {
     const blue=composition?.blue??['striker','bulwark'];
     const orange=composition?.orange??['striker','bulwark'];
     this.state={elapsed:0,status:'ready',score:{blue:0,orange:0},goalResetTimer:0,ball:{x:270,y:this.field.height/2,vx:0,vy:0,radius:BALL_RADIUS,mass:1},robots:[
-      this.robot('blue',0,blue[0]==='bulwark'||blue[0]==='sweeper'?this.field.width/2-90:180+formationOffset,blue[0]==='bulwark'||blue[0]==='sweeper'?this.field.height-SWEEPER_HOME_DEPTH:this.field.height-170,blue[0]),
+      this.robot('blue',0,blue[0]==='sweeper'?this.field.width/2:blue[0]==='bulwark'?this.field.width/2-90:180+formationOffset,blue[0]==='bulwark'||blue[0]==='sweeper'?this.field.height-SWEEPER_HOME_DEPTH:this.field.height-170,blue[0]),
       this.robot('blue',1,blue[1]==='bulwark'||blue[1]==='sweeper'?this.field.width/2+90:360-formationOffset,blue[1]==='bulwark'||blue[1]==='sweeper'?this.field.height-SWEEPER_HOME_DEPTH:this.field.height-310,blue[1]),
-      this.robot('orange',0,orange[0]==='bulwark'||orange[0]==='sweeper'?this.field.width/2+90:360-formationOffset,orange[0]==='bulwark'||orange[0]==='sweeper'?SWEEPER_HOME_DEPTH:170,orange[0]),
+      this.robot('orange',0,orange[0]==='sweeper'?this.field.width/2:orange[0]==='bulwark'?this.field.width/2+90:360-formationOffset,orange[0]==='bulwark'||orange[0]==='sweeper'?SWEEPER_HOME_DEPTH:170,orange[0]),
       this.robot('orange',1,orange[1]==='bulwark'||orange[1]==='sweeper'?this.field.width/2-90:180+formationOffset,orange[1]==='bulwark'||orange[1]==='sweeper'?SWEEPER_HOME_DEPTH:310,orange[1]),
     ]};
     this.seedFormation=Object.fromEntries(this.state.robots.map(robot=>[robot.id,{x:robot.x,y:robot.y}]));
@@ -226,7 +226,7 @@ export class MatchSimulation {
         }
         case 'sweeper': {
           const homeY=attack<0?this.field.height-SWEEPER_HOME_DEPTH:SWEEPER_HOME_DEPTH;
-          const homeX=centerX+side;
+          const homeX=centerX;
           const ballInOwnHalf=attack<0?b.y>centerY:b.y<centerY;
           const ballTowardOwnGoal=attack<0?b.vy>45:b.vy< -45;
           const distanceToBall=Math.hypot(b.x-robot.x,b.y-robot.y);
@@ -257,8 +257,7 @@ export class MatchSimulation {
           } else if(robot.sweeperState==='RETURN_TO_POST'){
             targetX=homeX; targetY=homeY; action='RESET'; robot.target='HOME_POST';
           } else {
-            const blockTarget=this.goalAngleBlockTarget(robot.team,b.x,b.y);
-            targetX=blockTarget.x; targetY=blockTarget.y; action='COVER'; robot.target='GOAL_BLOCK';
+            targetX=homeX; targetY=homeY; action='COVER'; robot.target='HOME_POST';
           }
           const faceX=b.x-robot.x,faceY=b.y-robot.y,faceLen=Math.hypot(faceX,faceY)||1;
           robot.facingX=faceX/faceLen; robot.facingY=faceY/faceLen;

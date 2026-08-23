@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MatchSimulation, GOAL_AREA, SWEEPER_FORWARD_LIMIT, KICK_RANGE_PROFILES } from '../src/simulation/MatchSimulation';
+import { MatchSimulation, GOAL_AREA, SWEEPER_FORWARD_LIMIT } from '../src/simulation/MatchSimulation';
 import { configureStriker1v1 } from './fixtures';
 
 describe('MatchSimulation', () => {
@@ -229,25 +229,27 @@ describe('MatchSimulation', () => {
     expect(sweeper.moveTargetY).toBeLessThanOrEqual(180);
   });
 
-  it('uses distinct role-specific kick range profiles and a closer symmetric Sweeper post', () => {
-    expect(KICK_RANGE_PROFILES.sweeper.distance).toBeGreaterThan(KICK_RANGE_PROFILES.striker.distance);
-    expect(KICK_RANGE_PROFILES.cannon.halfAngleDeg).toBeLessThan(KICK_RANGE_PROFILES.dribbler.halfAngleDeg);
+  it('holds the Sweeper on the centered home-post axis before a threat appears', () => {
     const match=new MatchSimulation(9090,{blue:['sweeper','striker'],orange:['sweeper','striker']});
+    expect(match.state.robots.find(robot=>robot.id==='blue-0')!.x).toBe(270);
+    expect(match.state.robots.find(robot=>robot.id==='orange-0')!.x).toBe(270);
     expect(match.state.robots.find(robot=>robot.id==='blue-0')!.y).toBe(740);
     expect(match.state.robots.find(robot=>robot.id==='orange-0')!.y).toBe(120);
     match.start(); match.tick(1/60);
-    expect(match.state.robots.find(robot=>robot.id==='blue-0')!.moveTargetY).toBe(732);
-    expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetY).toBe(128);
+    expect(match.state.robots.find(robot=>robot.id==='blue-0')!.moveTargetX).toBe(270);
+    expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetX).toBe(270);
+    expect(match.state.robots.find(robot=>robot.id==='blue-0')!.moveTargetY).toBe(740);
+    expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetY).toBe(120);
   });
 
   it('lets a Sweeper advance beyond the Goal Area while preserving the goal angle', () => {
     const match=new MatchSimulation(5153,{blue:['sweeper','striker'],orange:['striker','striker']}); match.start();
     (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
-    const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!; match.state.ball.x=270; match.state.ball.y=430; match.tick(1/60);
+    const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!; match.state.ball.x=270; match.state.ball.y=600; match.state.ball.vy=80; match.tick(1/60);
     expect(sweeper.moveTargetY).toBeLessThan(match.field.height-GOAL_AREA.depth);
     expect(sweeper.moveTargetY).toBeGreaterThan(match.field.height/2-SWEEPER_FORWARD_LIMIT);
   });
-  it('patrols a wide symmetric lateral lane while preparing at the home post', () => {
+  it('keeps a Sweeper centered while holding post before a threat', () => {
     const match=new MatchSimulation(9191,{blue:['sweeper','striker'],orange:['striker','striker']});
     match.start(); (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false;
     const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
@@ -256,9 +258,8 @@ describe('MatchSimulation', () => {
     match.state.ball.x=440; match.tick(1/60);
     const rightTarget=sweeper.moveTargetX;
     expect(sweeper.sweeperState).toBe('HOLD_POST');
-    expect(rightTarget-leftTarget).toBeGreaterThan(80);
-    expect(leftTarget).toBeGreaterThanOrEqual(28);
-    expect(rightTarget).toBeLessThanOrEqual(match.field.width-28);
+    expect(leftTarget).toBe(270);
+    expect(rightTarget).toBe(270);
   });
 
   it('clears a near-miss ball inside the Sweeper interception reach', () => {
