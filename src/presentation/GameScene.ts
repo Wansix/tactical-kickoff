@@ -27,8 +27,8 @@ export class GameScene extends Phaser.Scene {
     this.add.rectangle(this.field.x+270,topBarY,GOAL_GEOMETRY.barRight-GOAL_GEOMETRY.barLeft,12,0xff9f43); this.add.rectangle(this.field.x+270,bottomBarY,GOAL_GEOMETRY.barRight-GOAL_GEOMETRY.barLeft,12,0x53d6df); const postHeight=GOAL_GEOMETRY.depth; this.add.rectangle(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y-GOAL_GEOMETRY.depth/2,GOAL_GEOMETRY.postThickness,postHeight,0xff9f43); this.add.rectangle(this.field.x+GOAL_GEOMETRY.postRight,this.field.y-GOAL_GEOMETRY.depth/2,GOAL_GEOMETRY.postThickness,postHeight,0xff9f43); this.add.rectangle(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y+this.field.h+GOAL_GEOMETRY.depth/2,GOAL_GEOMETRY.postThickness,postHeight,0x53d6df); this.add.rectangle(this.field.x+GOAL_GEOMETRY.postRight,this.field.y+this.field.h+GOAL_GEOMETRY.depth/2,GOAL_GEOMETRY.postThickness,postHeight,0x53d6df);
     const goalArea=this.add.graphics().setDepth(1);
     const areaWidth=GOAL_AREA.right-GOAL_AREA.left;
-    goalArea.fillStyle(0xff9f43,0.045); goalArea.fillRect(this.field.x+GOAL_AREA.left,this.field.y+28,areaWidth,GOAL_AREA.depth);
-    goalArea.lineStyle(2,0xff9f43,0.42); goalArea.strokeRect(this.field.x+GOAL_AREA.left,this.field.y+28,areaWidth,GOAL_AREA.depth);
+    goalArea.fillStyle(0xff9f43,0.045); goalArea.fillRect(this.field.x+GOAL_AREA.left,this.field.y,areaWidth,GOAL_AREA.depth);
+    goalArea.lineStyle(2,0xff9f43,0.42); goalArea.strokeRect(this.field.x+GOAL_AREA.left,this.field.y,areaWidth,GOAL_AREA.depth);
     goalArea.fillStyle(0x48d7e1,0.045); goalArea.fillRect(this.field.x+GOAL_AREA.left,this.field.y+this.field.h-GOAL_AREA.depth,areaWidth,GOAL_AREA.depth);
     goalArea.lineStyle(2,0x48d7e1,0.42); goalArea.strokeRect(this.field.x+GOAL_AREA.left,this.field.y+this.field.h-GOAL_AREA.depth,areaWidth,GOAL_AREA.depth);
     this.ball=this.add.circle(this.field.x+270,this.field.y+this.field.h/2,10,0xf6f3dc).setStrokeStyle(3,0xffd16b);
