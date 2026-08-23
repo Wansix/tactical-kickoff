@@ -231,15 +231,17 @@ describe('MatchSimulation', () => {
     match.start();
     (match as any).kickoffTimer = 0; (match as any).kickoffFirstKickPending = false;
     const sweeper = match.state.robots.find(robot => robot.id === 'blue-0')!;
-    sweeper.x = 270; sweeper.y = 430; sweeper.facingX = 0; sweeper.facingY = -1;
+    sweeper.x = 270; sweeper.y = 680; sweeper.facingX = 0; sweeper.facingY = -1;
     sweeper.sweeperState = 'INTERCEPT';
-    match.state.ball.x = 270; match.state.ball.y = 400; match.state.ball.vx = 0; match.state.ball.vy = 80;
+    match.state.ball.x = 270; match.state.ball.y = 650; match.state.ball.vx = 0; match.state.ball.vy = 80;
     match.tick(1/60);
     const clear = match.getEvents().find(event => event.type === 'kick' && event.ids?.includes(sweeper.id));
     expect(clear).toBeDefined();
     expect(clear!.tick).toBe(match.getEvents().find(event => event.type === 'robot-ball-collision' && event.ids?.includes(sweeper.id))!.tick);
-    expect(clear!.power).toBeGreaterThan(250);
+    expect(clear!.power).toBeGreaterThan(500);
     expect(sweeper.clearImpulse).toBeGreaterThan(0);
+    for (let tick = 0; tick < 30; tick++) match.tick(1/60);
+    expect(match.state.ball.y).toBeLessThan(match.field.height/2);
     for (let tick = 0; tick < 120; tick++) { match.state.ball.vx = 0; match.state.ball.vy = 0; match.tick(1/60); }
     expect(match.getTelemetry().some(frame => frame.robots.find(robot => robot.id === sweeper.id)?.sweeperState === 'RETURN_TO_POST')).toBe(true);
     expect(sweeper.returnTick).toBeGreaterThan(0);

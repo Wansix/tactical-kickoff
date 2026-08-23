@@ -50,6 +50,7 @@ const DAMPING=0.82;
 const ROBOT_BALL_RESTITUTION=1.85;
 const WALL_BOUNCE=0.75;
 const KICK_POWER=300;
+const SWEEPER_CLEAR_SPEED=720;
 const CANNON_KICK_POWER=315;
 const ROBOT_SPEED_MULT=2;
 const ROBOT_ACCEL_MULT=2;
@@ -371,7 +372,7 @@ export class MatchSimulation {
   private applySweeperClear(robot:Robot){
     const b=this.state.ball; const attackY=robot.team==='blue'?-1:1;
     const beforeX=b.vx,beforeY=b.vy;
-    const desiredVy=attackY*Math.max(Math.abs(beforeY),360);
+    const desiredVy=attackY*Math.max(Math.abs(beforeY),SWEEPER_CLEAR_SPEED);
     const impulse=Math.abs(desiredVy-beforeY)*b.mass;
     this.applyBallImpulse(0,desiredVy-beforeY);
     robot.clearImpulse=impulse; robot.clearCooldown=0.35; robot.sweeperState='CLEAR_KICK'; robot.action='KICK'; robot.kickCooldown=0.45; robot.kickLockout=0.1;
