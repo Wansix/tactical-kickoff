@@ -78,8 +78,10 @@ export class MatchSimulation {
     const blue=composition?.blue??['striker','bulwark'];
     const orange=composition?.orange??['striker','bulwark'];
     this.state={elapsed:0,status:'ready',score:{blue:0,orange:0},goalResetTimer:0,ball:{x:270,y:this.field.height/2,vx:0,vy:0,radius:BALL_RADIUS,mass:1},robots:[
-      this.robot('blue',0,180+formationOffset,this.field.height-170,blue[0]), this.robot('blue',1,360-formationOffset,this.field.height-310,blue[1]),
-      this.robot('orange',0,360-formationOffset,170,orange[0]), this.robot('orange',1,180+formationOffset,310,orange[1]),
+      this.robot('blue',0,blue[0]==='bulwark'||blue[0]==='sweeper'?this.field.width/2-90:180+formationOffset,blue[0]==='bulwark'||blue[0]==='sweeper'?this.field.height-SWEEPER_HOME_DEPTH:this.field.height-170,blue[0]),
+      this.robot('blue',1,blue[1]==='bulwark'||blue[1]==='sweeper'?this.field.width/2+90:360-formationOffset,blue[1]==='bulwark'||blue[1]==='sweeper'?this.field.height-SWEEPER_HOME_DEPTH:this.field.height-310,blue[1]),
+      this.robot('orange',0,orange[0]==='bulwark'||orange[0]==='sweeper'?this.field.width/2+90:360-formationOffset,orange[0]==='bulwark'||orange[0]==='sweeper'?SWEEPER_HOME_DEPTH:170,orange[0]),
+      this.robot('orange',1,orange[1]==='bulwark'||orange[1]==='sweeper'?this.field.width/2-90:180+formationOffset,orange[1]==='bulwark'||orange[1]==='sweeper'?SWEEPER_HOME_DEPTH:310,orange[1]),
     ]};
     this.seedFormation=Object.fromEntries(this.state.robots.map(robot=>[robot.id,{x:robot.x,y:robot.y}]));
     this.lastBallX=this.state.ball.x; this.lastBallY=this.state.ball.y;

@@ -231,6 +231,8 @@ describe('MatchSimulation', () => {
     expect(KICK_RANGE_PROFILES.sweeper.distance).toBeGreaterThan(KICK_RANGE_PROFILES.striker.distance);
     expect(KICK_RANGE_PROFILES.cannon.halfAngleDeg).toBeLessThan(KICK_RANGE_PROFILES.dribbler.halfAngleDeg);
     const match=new MatchSimulation(9090,{blue:['sweeper','striker'],orange:['sweeper','striker']});
+    expect(match.state.robots.find(robot=>robot.id==='blue-0')!.y).toBe(740);
+    expect(match.state.robots.find(robot=>robot.id==='orange-0')!.y).toBe(120);
     match.start(); match.tick(1/60);
     expect(match.state.robots.find(robot=>robot.id==='blue-0')!.moveTargetY).toBe(740);
     expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetY).toBe(120);
