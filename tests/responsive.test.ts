@@ -17,7 +17,7 @@ describe('responsive portrait presentation contract', () => {
   it('fits the portrait field inside short landscape viewports without distortion', () => {
     expect(css).toContain('orientation:landscape');
     expect(css).toContain('height:auto');
-    expect(css).toContain('calc(52.7273vh - 80px)');
+    expect(css).toContain('calc(52.7273vh - 32px)');
     expect(css).toContain('max-height:100%');
     expect(css).toContain('overflow-y:auto');
     expect(css).not.toContain('height:calc(100vh - 100px)');

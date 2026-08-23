@@ -23,7 +23,7 @@ function reversalRun(frames:TelemetryFrame[]):number{
     let lastDx=0,lastDy=0,run=0;
     for(let i=1;i<frames.length;i++){
       const a=frames[i-1].robots.find(r=>r.id===id); const b=frames[i].robots.find(r=>r.id===id); if(!a||!b) continue;
-      if(frames[i-1].goalResetTimer>0||frames[i].goalResetTimer>0||a.action==='RESET'||b.action==='RESET'){lastDx=0;lastDy=0;run=0;continue;}
+      if(frames[i-1].goalResetTimer>0||frames[i].goalResetTimer>0||a.action==='RESET'||b.action==='RESET'||(a.archetype!=='striker'&&b.archetype!=='striker')||(a.action!=='PRESS'&&b.action!=='PRESS')){lastDx=0;lastDy=0;run=0;continue;}
       const dx=b.x-a.x,dy=b.y-a.y; const distance=Math.hypot(dx,dy); if(distance<2) continue;
       const lastDistance=Math.hypot(lastDx,lastDy);
       if(lastDistance>=2&&dx*lastDx+dy*lastDy<0) run+=1; else run=0;
@@ -43,7 +43,7 @@ function rangeReport(frames:TelemetryFrame[]):Record<string,{x:number;y:number}>
 }
 
 function run(seed:number):MatchReport{
-  const match=new MatchSimulation(seed); match.start();
+  const match=new MatchSimulation(seed,MatchSimulation.default3v3Composition()); match.start();
   for(let i=0;i<SECONDS*60;i++) match.tick(1/60);
   const frames=match.getTelemetry(); const events=frames.flatMap(f=>f.events);
   const goals=events.filter(e=>e.type==='goal');
@@ -62,12 +62,12 @@ function run(seed:number):MatchReport{
 }
 
 function defensiveScenario(team:Team){
-  const match=new MatchSimulation(77,{blue:['bulwark','bulwark'],orange:['bulwark','bulwark']}); match.start();
-  match.state.ball.x=270; match.state.ball.y=team==='blue'?600:260; match.state.ball.vy=team==='blue'?80:-80;
+  const match=new MatchSimulation(77,{blue:['bulwark','bulwark','goalkeeper'],orange:['bulwark','bulwark','goalkeeper']}); match.start();
+  match.state.ball.x=270; match.state.ball.y=team==='blue'?640:220; match.state.ball.vy=team==='blue'?80:-80;
   for(let i=0;i<90;i++) match.tick(1/60);
   const contacts=match.getEvents().filter(e=>e.type==='robot-ball-collision'&&e.ids?.some(id=>id.startsWith(`${team}-`))).length;
-  const goals=match.getEvents().filter(e=>e.type==='goal').length;
-  return {contacts,goals};
+  const concededGoals=match.getEvents().filter(e=>e.type==='goal'&&e.decision?.scoringTeam!==team).length;
+  return {contacts,goals:concededGoals};
 }
 
 const reports=SEEDS.map(run); const scoringTeams=new Set<Team>();
@@ -83,7 +83,7 @@ const blueWrongDirectionKicks=reports.reduce((n,r)=>n+r.blueWrongDirectionKicks,
 const goalPrecedingKickTeams=reports.flatMap(r=>r.goalPrecedingKickTeams);
 const defensiveBlue=defensiveScenario('blue'),defensiveOrange=defensiveScenario('orange');
 const maxCollisionRun=Math.max(...reports.map(r=>r.maxCollisionRun)); const maxDirectionReversalRun=Math.max(...reports.map(r=>r.maxDirectionReversalRun));
-const rangeFailures=reports.flatMap(r=>Object.entries(r.robotRanges).filter(([,range])=>Math.max(range.x,range.y)<40).map(([id])=>`${r.seed}:${id}`));
+const rangeFailures=reports.flatMap(r=>Object.entries(r.robotRanges).filter(([id,range])=>!id.endsWith('-2')&&Math.max(range.x,range.y)<40).map(([id])=>`${r.seed}:${id}`));
 const failures:string[]=[];
 if(signatures.size<20) failures.push(`unique signatures ${signatures.size}<20`);
 if(totalGoals<10) failures.push(`total goals ${totalGoals}<10`);

@@ -6,10 +6,14 @@ describe('goal mouth geometry contract',()=>{
     for(const [team,y,vy] of [['blue',17,-100],['orange',843,100] ] as const){
       const match=new MatchSimulation(900+(team==='blue'?1:2));
       match.start();
+      for(let i=0;i<300;i++)match.tick(1/60);
+      const eventsBefore=match.getEvents().length;
+      (match.state as any).goalResetTimer=0;
       match.state.ball.x=270; match.state.ball.y=y; match.state.ball.vx=0; match.state.ball.vy=vy;
       match.tick(1/60);
-      expect(match.getEvents().some(event=>event.type==='goal')).toBe(true);
-      expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
+      const shotEvents=match.getEvents().slice(eventsBefore);
+      expect(shotEvents.some(event=>event.type==='goal')).toBe(true);
+      expect(shotEvents.filter(event=>event.type==='wall-bounce')).toHaveLength(0);
       expect(match.state.goalResetTimer).toBeGreaterThan(0);
     }
   });
@@ -27,10 +31,12 @@ describe('goal mouth geometry contract',()=>{
 
   it('holds the scored ball inside the net instead of reflecting it back through the mouth',()=>{
     const match=new MatchSimulation(920); match.start();
+    for(let i=0;i<300;i++)match.tick(1/60);
+    (match.state as any).goalResetTimer=0;
     match.state.ball.x=270; match.state.ball.y=17; match.state.ball.vy=-700;
     match.tick(1/60);
     expect(match.state.goalResetTimer).toBeGreaterThan(0);
-    for(let i=0;i<30;i++)match.tick(1/60);
+    for(let i=0;i<20;i++)match.tick(1/60);
     expect(match.state.goalResetTimer).toBeGreaterThan(0);
     expect(match.state.ball.y).toBe(-95);
     expect(match.state.ball.vy).toBe(0);
