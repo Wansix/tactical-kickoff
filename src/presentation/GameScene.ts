@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { MatchSimulation, GOAL_GEOMETRY, type Robot, type Team } from '../simulation/MatchSimulation';
+import { MatchSimulation, GOAL_GEOMETRY, KICK_RANGE_PROFILES, type MatchState, type Robot, type Team } from '../simulation/MatchSimulation';
 import { robotDebug } from '../simulation/SimulationQA';
 
 export class GameScene extends Phaser.Scene {
@@ -10,6 +10,7 @@ export class GameScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
   private kickDebugGraphics!: Phaser.GameObjects.Graphics;
+  private kickRangeGraphics!: Phaser.GameObjects.Graphics;
   private debugEnabled=false;
   private speed = 1;
   private field = { x: 20, y: 110, w: 540, h: 860 };
@@ -19,6 +20,7 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor('#08111d');
     this.kickDebugGraphics=this.add.graphics().setDepth(9);
+    this.kickRangeGraphics=this.add.graphics().setDepth(8);
     this.sim.setKickDebugLine(this.debugEnabled);
     const g=this.add.graphics(); g.fillStyle(0x102b37);g.fillRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x3c7180,1);g.strokeRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x5b98a1,.55);g.strokeRect(this.field.x,this.field.y+this.field.h/2-1,this.field.w,2);g.strokeCircle(this.field.x+this.field.w/2,this.field.y+this.field.h/2,78); const topBarY=this.field.y-GOAL_GEOMETRY.depth;const bottomBarY=this.field.y+this.field.h+GOAL_GEOMETRY.depth;g.beginPath();g.moveTo(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y);g.lineTo(this.field.x+GOAL_GEOMETRY.barLeft,topBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.barRight,topBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.postRight,this.field.y);g.strokePath();g.beginPath();g.moveTo(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y+this.field.h);g.lineTo(this.field.x+GOAL_GEOMETRY.barLeft,bottomBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.barRight,bottomBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.postRight,this.field.y+this.field.h);g.strokePath();
     // Goals use the owning team's color: orange owns the top goal, blue owns the bottom goal.
@@ -48,8 +50,8 @@ export class GameScene extends Phaser.Scene {
       : r.shape==='diamond' ? this.add.polygon(0,0,[0,-18,18,0,0,18,-18,0],color)
       : this.add.polygon(0,0,[0,-18,15,-9,15,9,0,18,-15,9,-15,-9],color);
     body.setStrokeStyle(3,0x16232f);
-    const nose=this.add.triangle(0,-25,0,-10,-9,8,9,8,0xf6f3dc,1).setStrokeStyle(2,0x16232f);
-    const noseCenterLine=this.add.line(0,-25,0,-10,0,8,0x182a36,1).setLineWidth(1.5);
+    const nose=this.add.polygon(0,0,[0,-24,-10,-3,10,-3],0xf6f3dc,1).setStrokeStyle(2,0x16232f);
+    const noseCenterLine=this.add.line(0,0,0,0,0,-38,0x182a36,1).setLineWidth(1.5);
     const labelY=r.team==='blue'?27:-42;
     const label=this.add.text(-48,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'11px',color:'#d8f0ec',align:'center',fixedWidth:96});
     const visual=this.add.container(0,0,[ring,body,nose,noseCenterLine]);
@@ -59,5 +61,22 @@ export class GameScene extends Phaser.Scene {
   }
   private roleLabel(r:Robot):string { return r.archetype==='bulwark'||r.archetype==='sweeper'?'스위퍼':r.archetype==='striker'?'돌격대장':r.archetype==='scout'?'정찰봇':r.archetype==='dribbler'?'운반봇':'포격봇'; }
   private actionLabel(action:Robot['action']):string { return ({PRESS:'압박',COVER:'커버',CARRY:'운반',KICK:'킥',SHOOT:'강슛',RESET:'복귀'} as Record<Robot['action'],string>)[action]; }
-  private render():void { const s=this.sim.state; this.kickDebugGraphics.clear(); if(this.debugEnabled){this.kickDebugGraphics.lineStyle(5,0xffe66d,1);for(const r of s.robots){const length=72;this.kickDebugGraphics.beginPath();this.kickDebugGraphics.moveTo(this.field.x+r.x,this.field.y+r.y);this.kickDebugGraphics.lineTo(this.field.x+r.x+r.facingX*length,this.field.y+r.y+r.facingY*length);this.kickDebugGraphics.strokePath();}}this.scoreText.setText(`점수  ${s.score.blue} : ${s.score.orange}`);const remain=Math.ceil(90-s.elapsed);this.timeText.setText(`${Math.floor(remain/60).toString().padStart(2,'0')}:${(remain%60).toString().padStart(2,'0')}`);const status=s.goalResetTimer>0?`골인 · ${s.goalResetTimer.toFixed(1)}초`:s.status==='ready'?'준비 · 시작':s.status==='running'?`경기 중 · ${this.speed.toFixed(1)}배`:s.status==='paused'?'일시정지':'경기 종료';this.statusText.setText(status);this.ball.setPosition(this.field.x+s.ball.x,this.field.y+s.ball.y);for(const r of s.robots){const c=this.robotGraphics.get(r.id);if(c){c.setPosition(this.field.x+r.x,this.field.y+r.y);const visual=c.list[0] as Phaser.GameObjects.Container;visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);const body=visual.list[1] as Phaser.GameObjects.Shape;const nose=visual.list[2] as Phaser.GameObjects.Shape;const flashing=r.lastKickAt!==undefined&&s.elapsed-r.lastKickAt<0.12;body.setFillStyle(flashing?0xffffff:r.team==='blue'?0x48d7e1:0xff9f43);nose.setFillStyle(flashing?0xffffff:0xf6f3dc);const label=c.list[1] as Phaser.GameObjects.Text;label.setText(`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`);}}}
+  private renderKickRanges(s:MatchState):void {
+    this.kickRangeGraphics.clear();
+    for(const r of s.robots){
+      const profile=KICK_RANGE_PROFILES[r.archetype];
+      const color=r.team==='blue'?0x48d7e1:0xff9f43;
+      const distance=Math.hypot(s.ball.x-r.x,s.ball.y-r.y);
+      const active=distance<=profile.distance+12;
+      const alpha=active?0.58:0.18;
+      const facing=Math.atan2(r.facingY,r.facingX);
+      const halfAngle=profile.halfAngleDeg*Math.PI/180;
+      this.kickRangeGraphics.lineStyle(active?2.5:1.5,color,alpha);
+      this.kickRangeGraphics.strokeCircle(this.field.x+r.x,this.field.y+r.y,profile.distance);
+      this.kickRangeGraphics.beginPath();
+      this.kickRangeGraphics.arc(this.field.x+r.x,this.field.y+r.y,profile.distance,facing-halfAngle,facing+halfAngle,false);
+      this.kickRangeGraphics.strokePath();
+    }
+  }
+  private render():void { const s=this.sim.state; this.renderKickRanges(s); this.kickDebugGraphics.clear(); if(this.debugEnabled){this.kickDebugGraphics.lineStyle(5,0xffe66d,1);for(const r of s.robots){const length=72;this.kickDebugGraphics.beginPath();this.kickDebugGraphics.moveTo(this.field.x+r.x,this.field.y+r.y);this.kickDebugGraphics.lineTo(this.field.x+r.x+r.facingX*length,this.field.y+r.y+r.facingY*length);this.kickDebugGraphics.strokePath();}}this.scoreText.setText(`점수  ${s.score.blue} : ${s.score.orange}`);const remain=Math.ceil(90-s.elapsed);this.timeText.setText(`${Math.floor(remain/60).toString().padStart(2,'0')}:${(remain%60).toString().padStart(2,'0')}`);const status=s.goalResetTimer>0?`골인 · ${s.goalResetTimer.toFixed(1)}초`:s.status==='ready'?'준비 · 시작':s.status==='running'?`경기 중 · ${this.speed.toFixed(1)}배`:s.status==='paused'?'일시정지':'경기 종료';this.statusText.setText(status);this.ball.setPosition(this.field.x+s.ball.x,this.field.y+s.ball.y);for(const r of s.robots){const c=this.robotGraphics.get(r.id);if(c){c.setPosition(this.field.x+r.x,this.field.y+r.y);const visual=c.list[0] as Phaser.GameObjects.Container;visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);const body=visual.list[1] as Phaser.GameObjects.Shape;const nose=visual.list[2] as Phaser.GameObjects.Shape;const flashing=r.lastKickAt!==undefined&&s.elapsed-r.lastKickAt<0.12;body.setFillStyle(flashing?0xffffff:r.team==='blue'?0x48d7e1:0xff9f43);nose.setFillStyle(flashing?0xffffff:0xf6f3dc);const label=c.list[1] as Phaser.GameObjects.Text;label.setText(`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`);}}}
 }
