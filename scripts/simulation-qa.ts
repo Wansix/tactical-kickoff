@@ -67,8 +67,8 @@ function defensiveScenario(team:Team){
   const defenderId=`${team}-1`;
   for(let i=0;i<90;i++) match.tick(1/60);
   const contacts=match.getEvents().filter(e=>e.type==='robot-ball-collision'&&e.ids?.includes(defenderId)).length;
-  const goals=match.getEvents().filter(e=>e.type==='goal').length;
-  return {contacts,goals};
+  const concededGoals=match.getEvents().filter(e=>e.type==='goal'&&e.decision?.scoringTeam!==team).length;
+  return {contacts,goals:concededGoals};
 }
 
 const reports=SEEDS.map(run); const scoringTeams=new Set<Team>();
