@@ -48,6 +48,7 @@ export const KICK_RANGE_PROFILES={
   sweeper:{distance:44,halfAngleDeg:50},
 } as const;
 const SWEEPER_HOME_DEPTH=120;
+const SWEEPER_LATERAL_COVERAGE=120;
 const FIXED_DT=1/60;
 export const GOAL_GEOMETRY={mouthLeft:195,mouthRight:345,postLeft:170,postRight:370,postThickness:50,barLeft:145,barRight:395,depth:105} as const;
 const GOAL_LEFT=GOAL_GEOMETRY.mouthLeft;
@@ -247,7 +248,8 @@ export class MatchSimulation {
           } else if(robot.sweeperState==='RETURN_TO_POST'){
             targetX=homeX; targetY=homeY; action='RESET'; robot.target='HOME_POST';
           } else {
-            targetX=homeX; targetY=homeY; action='COVER'; robot.target='HOME_POST';
+            const patrolOffset=this.clamp((b.x-centerX)*0.55,-SWEEPER_LATERAL_COVERAGE,SWEEPER_LATERAL_COVERAGE);
+            targetX=this.clamp(homeX+patrolOffset,28,this.field.width-28); targetY=homeY; action='COVER'; robot.target='HOME_POST';
           }
           const faceX=b.x-robot.x,faceY=b.y-robot.y,faceLen=Math.hypot(faceX,faceY)||1;
           robot.facingX=faceX/faceLen; robot.facingY=faceY/faceLen;

@@ -236,6 +236,20 @@ describe('MatchSimulation', () => {
     expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetY).toBe(120);
   });
 
+  it('patrols a wide symmetric lateral lane while preparing at the home post', () => {
+    const match=new MatchSimulation(9191,{blue:['sweeper','striker'],orange:['striker','striker']});
+    match.start(); (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false;
+    const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
+    match.state.ball.y=430; match.state.ball.x=100; match.tick(1/60);
+    const leftTarget=sweeper.moveTargetX;
+    match.state.ball.x=440; match.tick(1/60);
+    const rightTarget=sweeper.moveTargetX;
+    expect(sweeper.sweeperState).toBe('HOLD_POST');
+    expect(rightTarget-leftTarget).toBeGreaterThan(150);
+    expect(leftTarget).toBeGreaterThanOrEqual(28);
+    expect(rightTarget).toBeLessThanOrEqual(match.field.width-28);
+  });
+
   it('clears a near-miss ball inside the Sweeper interception reach', () => {
     const match = new MatchSimulation(5152, {blue:['bulwark','striker'], orange:['striker','striker']});
     match.start();
