@@ -226,6 +226,19 @@ describe('MatchSimulation', () => {
     expect(sweeper.moveTargetY).toBeLessThan(match.state.ball.y);
   });
 
+  it('clears a near-miss ball inside the Sweeper interception reach', () => {
+    const match = new MatchSimulation(5152, {blue:['bulwark','striker'], orange:['striker','striker']});
+    match.start();
+    (match as any).kickoffTimer = 0; (match as any).kickoffFirstKickPending = false;
+    const sweeper = match.state.robots.find(robot => robot.id === 'blue-0')!;
+    sweeper.x = 270; sweeper.y = 600; sweeper.sweeperState = 'HOLD_POST';
+    match.state.ball.x = 270; match.state.ball.y = 560; match.state.ball.vx = 0; match.state.ball.vy = 200;
+    match.tick(1/60);
+    const clear = match.getEvents().find(event => event.type === 'kick' && event.ids?.includes(sweeper.id));
+    expect(clear).toBeDefined();
+    expect(match.state.ball.vy).toBeLessThan(-700);
+  });
+
   it('applies a Sweeper clear only after same-tick physical contact and records return tick', () => {
     const match = new MatchSimulation(4343, {blue:['sweeper','striker'], orange:['striker','striker']});
     match.start();

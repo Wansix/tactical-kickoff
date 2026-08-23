@@ -341,7 +341,9 @@ export class MatchSimulation {
       if((this.ballContactCooldown[robot.id]??0)>0) continue;
 
       const dx=b.x-robot.x,dy=b.y-robot.y,dist=Math.hypot(dx,dy)||1,minDist=robot.radius+b.radius;
-      if(dist>minDist+1) continue;
+      const isSweeper=robot.archetype==='bulwark'||robot.archetype==='sweeper';
+      const contactReach=isSweeper?44:minDist;
+      if(dist>contactReach+1) continue;
       const nx=dx/dist,ny=dy/dist;
       const penetration=minDist-dist;
       if(penetration>0){const invBall=1/b.mass,invRobot=1/robot.mass,total=invBall+invRobot;b.x+=nx*penetration*invBall/total;b.y+=ny*penetration*invBall/total;robot.x=this.clamp(robot.x-nx*penetration*invRobot/total,28,this.field.width-28);robot.y=this.clamp(robot.y-ny*penetration*invRobot/total,28,this.field.height-28);}
