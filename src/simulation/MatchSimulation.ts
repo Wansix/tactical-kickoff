@@ -61,7 +61,8 @@ const ROBOT_BALL_RESTITUTION=1.85;
 const WALL_BOUNCE=0.75;
 const KICK_POWER=300;
 const SWEEPER_CLEAR_SPEED=900;
-const SWEEPER_OPPONENT_SPEED=360;
+const SWEEPER_OPPONENT_DAMPING=0.12;
+const SWEEPER_OPPONENT_DAMPING_DEPTH=180;
 export const SWEEPER_FORWARD_LIMIT=90;
 const CANNON_KICK_POWER=315;
 const ROBOT_SPEED_MULT=2;
@@ -459,7 +460,7 @@ export class MatchSimulation {
   private integrateBall(dt:number){
     const b=this.state.ball;b.x+=b.vx*dt;b.y+=b.vy*dt;
     b.vx*=Math.pow(DAMPING,dt);b.vy*=Math.pow(DAMPING,dt);
-    if(this.sweeperClearTeam){const inOpponentHalf=this.sweeperClearTeam==='blue'?b.y<this.field.height/2:b.y>this.field.height/2;if(inOpponentHalf){const speed=Math.hypot(b.vx,b.vy);if(speed>SWEEPER_OPPONENT_SPEED){b.vx=b.vx/speed*SWEEPER_OPPONENT_SPEED;b.vy=b.vy/speed*SWEEPER_OPPONENT_SPEED;}b.vx*=Math.pow(0.25,dt);b.vy*=Math.pow(0.25,dt);}}
+    if(this.sweeperClearTeam){const inOpponentHalf=this.sweeperClearTeam==='blue'?b.y<this.field.height/2:b.y>this.field.height/2;if(inOpponentHalf){const depth=Math.min(SWEEPER_OPPONENT_DAMPING_DEPTH,Math.abs(b.y-this.field.height/2));const progress=depth/SWEEPER_OPPONENT_DAMPING_DEPTH;const damping=1-(1-SWEEPER_OPPONENT_DAMPING)*progress;b.vx*=Math.pow(damping,dt);b.vy*=Math.pow(damping,dt);}}
     const speed=Math.hypot(b.vx,b.vy);if(speed>MAX_SPEED){b.vx=b.vx/speed*MAX_SPEED;b.vy=b.vy/speed*MAX_SPEED;}
     if(Math.hypot(b.vx,b.vy)<2){b.vx=0;b.vy=0;}
   }

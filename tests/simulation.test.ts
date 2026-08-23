@@ -22,6 +22,7 @@ describe('MatchSimulation', () => {
   });
   it('scores and resets the ball when it crosses a goal line', () => {
     const match = new MatchSimulation(7); match.start(); match.tick(5);
+    match.state.score.blue=0; match.state.score.orange=0; match.state.goalResetTimer=0;
     match.state.ball.y = -3;
     match.state.ball.x = match.field.width / 2;
     match.state.ball.vy = -10;
@@ -288,7 +289,9 @@ describe('MatchSimulation', () => {
     expect(clear!.tick).toBe(match.getEvents().find(event => event.type === 'robot-ball-collision' && event.ids?.includes(sweeper.id))!.tick);
     expect(clear!.power).toBeGreaterThan(500);
     expect(sweeper.clearImpulse).toBeGreaterThan(0);
+    const speedAfterClear=Math.hypot(match.state.ball.vx,match.state.ball.vy);
     for (let tick = 0; tick < 30; tick++) match.tick(1/60);
+    expect(Math.hypot(match.state.ball.vx,match.state.ball.vy)).toBeLessThan(speedAfterClear);
     expect(match.state.ball.y).toBeLessThan(match.field.height/2);
     for (let tick = 0; tick < 120; tick++) { match.state.ball.vx = 0; match.state.ball.vy = 0; match.tick(1/60); }
     expect(match.getTelemetry().some(frame => frame.robots.find(robot => robot.id === sweeper.id)?.sweeperState === 'RETURN_TO_POST')).toBe(true);
