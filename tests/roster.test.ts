@@ -33,6 +33,29 @@ describe('3v3 roster and pre-match composition', () => {
     expect(goalkeeper.action).toBe('COVER');
   });
 
+  it('keeps goalkeepers near the goal line and places sweepers outside the Goal Area home line', () => {
+    const match = new MatchSimulation(306, MatchSimulation.default3v3Composition());
+    const blueKeeper = match.state.robots.find(robot => robot.id === 'blue-2')!;
+    const orangeKeeper = match.state.robots.find(robot => robot.id === 'orange-2')!;
+    const blueSweeper = match.state.robots.find(robot => robot.id === 'blue-1')!;
+    const orangeSweeper = match.state.robots.find(robot => robot.id === 'orange-1')!;
+    expect(blueKeeper.homeY).toBe(818);
+    expect(orangeKeeper.homeY).toBe(42);
+    expect(blueSweeper.homeY).toBeLessThan(860 - GOAL_AREA.depth);
+    expect(orangeSweeper.homeY).toBeGreaterThan(GOAL_AREA.depth);
+    expect(blueSweeper.homeX).toBe(270);
+    expect(orangeSweeper.homeX).toBe(270);
+  });
+
+  it('does not clear-kick a ball until the Sweeper physically contacts it', () => {
+    const match = new MatchSimulation(307, MatchSimulation.default3v3Composition());
+    match.start();
+    const sweeper = match.state.robots.find(robot => robot.id === 'blue-1')!;
+    match.state.ball.x = sweeper.x;
+    match.state.ball.y = sweeper.y + 100;
+    match.tick(1 / 60);
+    expect(match.getEvents().filter(event => event.type === 'kick' && event.ids?.includes(sweeper.id))).toHaveLength(0);
+  });
   it('validates field start slots and snapshots the selected composition', () => {
     const match = new MatchSimulation(305, MatchSimulation.default3v3Composition());
     const selected: Record<Team, [RobotArchetype, RobotArchetype]> = {

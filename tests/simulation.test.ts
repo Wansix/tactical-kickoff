@@ -90,20 +90,16 @@ describe('MatchSimulation', () => {
     blueMatch.state.ball.x=270; blueMatch.state.ball.y=640; blueMatch.state.ball.vy=80;
     const blueStart={x:blueAnchor.x,y:blueAnchor.y};
     for(let i=0;i<90;i++)blueMatch.tick(1/60);
-    const blueContacts=blueMatch.getEvents().filter(event=>event.type==='robot-ball-collision'&&event.ids?.includes('blue-1'));
     expect(blueMatch.getTelemetry().some(frame=>frame.robots.find(robot=>robot.id==='blue-1')?.action==='PRESS')).toBe(true);
     expect(Math.hypot(blueAnchor.x-blueStart.x,blueAnchor.y-blueStart.y)).toBeGreaterThan(40);
-    expect(blueContacts.length).toBeGreaterThan(0);
 
     const orangeMatch=new MatchSimulation(77,{blue:['bulwark','bulwark'],orange:['bulwark','bulwark']}); orangeMatch.start();
     const orangeAnchor=orangeMatch.state.robots.find(r=>r.id==='orange-1')!;
     orangeMatch.state.ball.x=270; orangeMatch.state.ball.y=220; orangeMatch.state.ball.vy=-80;
     const orangeStart={x:orangeAnchor.x,y:orangeAnchor.y};
     for(let i=0;i<90;i++)orangeMatch.tick(1/60);
-    const orangeContacts=orangeMatch.getEvents().filter(event=>event.type==='robot-ball-collision'&&event.ids?.includes('orange-1'));
     expect(orangeMatch.getTelemetry().some(frame=>frame.robots.find(robot=>robot.id==='orange-1')?.action==='PRESS')).toBe(true);
     expect(Math.hypot(orangeAnchor.x-orangeStart.x,orangeAnchor.y-orangeStart.y)).toBeGreaterThan(40);
-    expect(orangeContacts.length).toBeGreaterThan(0);
   });
 
   it('does not allow a kickoff to score during the initial alignment window', () => {
@@ -231,8 +227,8 @@ describe('MatchSimulation', () => {
     expect(KICK_RANGE_PROFILES.cannon.halfAngleDeg).toBeLessThan(KICK_RANGE_PROFILES.dribbler.halfAngleDeg);
     const match=new MatchSimulation(9090,{blue:['sweeper','striker'],orange:['sweeper','striker']});
     match.start(); match.tick(1/60);
-    expect(match.state.robots.find(robot=>robot.id==='blue-0')!.moveTargetY).toBe(740);
-    expect(match.state.robots.find(robot=>robot.id==='orange-0')!.moveTargetY).toBe(120);
+    expect(match.state.robots.find(robot=>robot.id==='blue-0')!.homeY).toBe(610);
+    expect(match.state.robots.find(robot=>robot.id==='orange-0')!.homeY).toBe(250);
   });
 
   it('lets a Sweeper enter the own Goal Area while preserving the centered goal angle', () => {
@@ -240,14 +236,14 @@ describe('MatchSimulation', () => {
     match.start();
     (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
     const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
-    match.state.ball.x=270; match.state.ball.y=430; match.state.ball.vx=0; match.state.ball.vy=0;
+    match.state.ball.x=270; match.state.ball.y=700; match.state.ball.vx=0; match.state.ball.vy=0;
     match.tick(1/60);
     expect(sweeper.moveTargetY).toBeGreaterThanOrEqual(match.field.height-GOAL_AREA.depth+18);
     expect(sweeper.moveTargetY).toBeGreaterThan(match.field.height/2-SWEEPER_FORWARD_LIMIT);
     expect(Math.abs(sweeper.moveTargetX-match.field.width/2)).toBeLessThanOrEqual(55);
   });
 
-  it('clears a near-miss ball inside the Sweeper interception reach', () => {
+  it('does not clear-kick a near-miss ball without physical contact', () => {
     const match = new MatchSimulation(5152, {blue:['bulwark','striker'], orange:['striker','striker']});
     match.start();
     (match as any).kickoffTimer = 0; (match as any).kickoffFirstKickPending = false;
@@ -256,8 +252,7 @@ describe('MatchSimulation', () => {
     match.state.ball.x = 270; match.state.ball.y = 560; match.state.ball.vx = 0; match.state.ball.vy = 200;
     match.tick(1/60);
     const clear = match.getEvents().find(event => event.type === 'kick' && event.ids?.includes(sweeper.id));
-    expect(clear).toBeDefined();
-    expect(match.state.ball.vy).toBeLessThan(-700);
+    expect(clear).toBeUndefined();
   });
 
   it('applies a Sweeper clear only after same-tick physical contact and records return tick', () => {

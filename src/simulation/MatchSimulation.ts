@@ -49,7 +49,9 @@ export const KICK_RANGE_PROFILES={
   sweeper:{distance:44,halfAngleDeg:50},
   goalkeeper:{distance:34,halfAngleDeg:55},
 } as const;
-const SWEEPER_HOME_DEPTH=120;
+const SWEEPER_HOME_DEPTH=250;
+const BULWARK_HOME_DEPTH=120;
+const GOALKEEPER_HOME_DEPTH=42;
 const FIXED_DT=1/60;
 export const GOAL_GEOMETRY={mouthLeft:195,mouthRight:345,postLeft:170,postRight:370,postThickness:50,barLeft:145,barRight:395,depth:105} as const;
 export const GOAL_AREA={left:110,right:430,depth:180} as const;
@@ -83,15 +85,16 @@ export class MatchSimulation {
     const roster=(team:Team, archetypes:RobotArchetype[])=>archetypes.map((archetype,index)=>{
       if(archetypes.length===2){
         const anchor=archetype==='bulwark'||archetype==='sweeper';
+        const anchorDepth=archetype==='sweeper'?SWEEPER_HOME_DEPTH:BULWARK_HOME_DEPTH;
         const x=archetype==='sweeper'?this.field.width/2:team==='blue'?(index===0?(anchor?this.field.width/2-90:180+formationOffset):(anchor?this.field.width/2+90:360-formationOffset)):(index===0?(anchor?this.field.width/2+90:360-formationOffset):(anchor?this.field.width/2-90:180+formationOffset));
-        const y=team==='blue'?(index===0?(anchor?this.field.height-SWEEPER_HOME_DEPTH:this.field.height-170):(anchor?this.field.height-SWEEPER_HOME_DEPTH:this.field.height-310)):(index===0?(anchor?SWEEPER_HOME_DEPTH:170):(anchor?SWEEPER_HOME_DEPTH:310));
+        const y=team==='blue'?(index===0?(anchor?this.field.height-anchorDepth:this.field.height-170):(anchor?this.field.height-anchorDepth:this.field.height-310)):(index===0?(anchor?anchorDepth:170):(anchor?anchorDepth:310));
         return this.robot(team,index,x,y,archetype,index===0?'left':'right');
       }
       const goalkeeper=archetype==='goalkeeper';
       const centeredSweeper=archetype==='sweeper';
       const startSlot:StartSlot=goalkeeper?'goalkeeper':centeredSweeper?'center':index===0?'left':'right';
       const x=goalkeeper||centeredSweeper?this.field.width/2:(startSlot==='left'?this.field.width/2-90:this.field.width/2+90);
-      const y=goalkeeper||centeredSweeper?(team==='blue'?this.field.height-SWEEPER_HOME_DEPTH:SWEEPER_HOME_DEPTH):(team==='blue'?(index===0?this.field.height-170:this.field.height-310):(index===0?170:310));
+      const y=goalkeeper||centeredSweeper?(team==='blue'?(goalkeeper?this.field.height-GOALKEEPER_HOME_DEPTH:this.field.height-SWEEPER_HOME_DEPTH):(goalkeeper?GOALKEEPER_HOME_DEPTH:SWEEPER_HOME_DEPTH)):(team==='blue'?(index===0?this.field.height-170:this.field.height-310):(index===0?170:310));
       return this.robot(team,index,x,y,archetype,startSlot);
     });
     this.state={elapsed:0,status:'ready',score:{blue:0,orange:0},goalResetTimer:0,ball:{x:270,y:this.field.height/2,vx:0,vy:0,radius:BALL_RADIUS,mass:1},robots:[
@@ -138,7 +141,7 @@ export class MatchSimulation {
   setComposition(team:Team,archetypes:[RobotArchetype,RobotArchetype],slots?:[StartSlot,StartSlot]){
     const robots=this.state.robots.filter(r=>r.team===team&&r.archetype!=='goalkeeper');
     if(slots&&new Set(slots).size!==2) throw new Error('field start slots must be distinct');
-    robots.slice(0,2).forEach((robot,i)=>{this.applyArchetype(robot,archetypes[i]);if(slots){const centeredSweeper=archetypes[i]==='sweeper';robot.startSlot=centeredSweeper?'center':slots[i];robot.homeX=centeredSweeper?this.field.width/2:(slots[i]==='left'?this.field.width/2-90:this.field.width/2+90);robot.homeY=centeredSweeper?(team==='blue'?this.field.height-SWEEPER_HOME_DEPTH:SWEEPER_HOME_DEPTH):(team==='blue'?(i?this.field.height-310:this.field.height-170):(i?310:170));robot.x=robot.homeX;robot.y=robot.homeY;}}); for(const robot of robots.slice(0,2)) this.seedFormation[robot.id]={x:robot.homeX,y:robot.homeY};
+      robots.slice(0,2).forEach((robot,i)=>{this.applyArchetype(robot,archetypes[i]);if(slots){const centeredSweeper=archetypes[i]==='sweeper';robot.startSlot=centeredSweeper?'center':slots[i];robot.homeX=centeredSweeper?this.field.width/2:(slots[i]==='left'?this.field.width/2-90:this.field.width/2+90);robot.homeY=centeredSweeper?(team==='blue'?this.field.height-SWEEPER_HOME_DEPTH:SWEEPER_HOME_DEPTH):(team==='blue'?(i?this.field.height-310:this.field.height-170):(i?310:170));robot.x=robot.homeX;robot.y=robot.homeY;}}); for(const robot of robots.slice(0,2)) this.seedFormation[robot.id]={x:robot.homeX,y:robot.homeY};
   }
   private applyArchetype(robot:Robot,archetype:RobotArchetype){const profile=this.profileForArchetype(archetype);robot.role=archetype;robot.archetype=archetype;robot.shape=this.shapeForRole(archetype);robot.mass=profile.mass;robot.maxSpeed=profile.maxSpeed*ROBOT_SPEED_MULT;robot.acceleration=profile.acceleration*ROBOT_ACCEL_MULT;}
   tick(dt:number){
@@ -408,9 +411,7 @@ export class MatchSimulation {
       if((this.ballContactCooldown[robot.id]??0)>0) continue;
 
       const dx=b.x-robot.x,dy=b.y-robot.y,dist=Math.hypot(dx,dy)||1,minDist=robot.radius+b.radius;
-      const isSweeper=robot.archetype==='bulwark'||robot.archetype==='sweeper';
-      const nearWall=b.x<80||b.x>this.field.width-80||b.y<80||b.y>this.field.height-80;
-      const contactReach=isSweeper&&!nearWall?Math.max(150,KICK_RANGE_PROFILES[robot.archetype].distance):minDist;
+      const contactReach=minDist;
       if(dist>contactReach+1) continue;
       const nx=dx/dist,ny=dy/dist;
       const penetration=minDist-dist;
