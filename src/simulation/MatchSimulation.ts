@@ -65,6 +65,7 @@ const ROBOT_BALL_RESTITUTION=1.85;
 const WALL_BOUNCE=0.75;
 const KICK_POWER=300;
 const SWEEPER_CLEAR_SPEED=900;
+const SWEEPER_EXIT_SPEED=360;
 export const SWEEPER_FORWARD_LIMIT=90;
 const CANNON_KICK_POWER=315;
 const ROBOT_SPEED_MULT=2;
@@ -72,7 +73,7 @@ const ROBOT_ACCEL_MULT=2;
 
 export class MatchSimulation {
   readonly field={width:540,height:860}; readonly duration=90; readonly seed:number; private paused=false; private accumulator=0; private tickIndex=0;
-  private kickoffTimer=0; private kickoffRaceTicks=0; private kickoffSafetyTimer=0; private initialKickoffSafety=true; private kickoffPreferredTeam:Team='blue'; private kickoffFirstKickPending=false; private kickDebugLine=false; private ballKickInvuln=0; private ballContactCooldown:Record<string,number>={}; private robotCollisionCooldown:Record<string,number>={}; private ballStuckTicks=0; private cornerStuckTicks=0; private sideWallStuckTicks=0; private sideWallRecoveryLatched=false; private stuckRecoveryCooldown=0; private cornerRecoveryCooldown=0; private centralDeflectionCooldown=0; private goalTeam:Team|undefined; private sweeperClearTeam:Team|undefined; private wallContact={left:false,right:false,top:false,bottom:false}; private lastBallX=270; private lastBallY=430; private lastKickTeam:Team|undefined; private lastKickX=0; private lastKickY=0; private lastKickElapsed=-10; private kickBurstCount=0; private kickBurstStart=-10; private events:SimulationEvent[]=[]; private telemetry:TelemetryFrame[]=[];
+  private kickoffTimer=0; private kickoffRaceTicks=0; private kickoffSafetyTimer=0; private initialKickoffSafety=true; private kickoffPreferredTeam:Team='blue'; private kickoffFirstKickPending=false; private kickDebugLine=false; private ballKickInvuln=0; private ballContactCooldown:Record<string,number>={}; private robotCollisionCooldown:Record<string,number>={}; private ballStuckTicks=0; private cornerStuckTicks=0; private sideWallStuckTicks=0; private sideWallRecoveryLatched=false; private stuckRecoveryCooldown=0; private cornerRecoveryCooldown=0; private centralDeflectionCooldown=0; private goalTeam:Team|undefined; private sweeperClearTeam:Team|undefined; private sweeperClearNeedsExit=false; private wallContact={left:false,right:false,top:false,bottom:false}; private lastBallX=270; private lastBallY=430; private lastKickTeam:Team|undefined; private lastKickX=0; private lastKickY=0; private lastKickElapsed=-10; private kickBurstCount=0; private kickBurstStart=-10; private events:SimulationEvent[]=[]; private telemetry:TelemetryFrame[]=[];
   private readonly seedFormation:Record<string,{x:number;y:number}>;
   state:MatchState;
 
@@ -116,7 +117,7 @@ export class MatchSimulation {
   }
 
   private shapeForRole(role:Role):RobotShape { return ({striker:'circle',bulwark:'square',scout:'diamond',dribbler:'circle',cannon:'hex',sweeper:'square',goalkeeper:'hex'} as Record<Role,RobotShape>)[role]; }
-  private profileForArchetype(archetype:RobotArchetype){return ({striker:{mass:2,maxSpeed:230,acceleration:1000},bulwark:{mass:3.2,maxSpeed:156,acceleration:600},scout:{mass:1.6,maxSpeed:290,acceleration:1240},dribbler:{mass:2.1,maxSpeed:210,acceleration:920},cannon:{mass:2.5,maxSpeed:184,acceleration:760},sweeper:{mass:3,maxSpeed:172,acceleration:680},goalkeeper:{mass:3.8,maxSpeed:120,acceleration:500}} as const)[archetype];}
+  private profileForArchetype(archetype:RobotArchetype){return ({striker:{mass:2,maxSpeed:230,acceleration:1000},bulwark:{mass:3.2,maxSpeed:156,acceleration:600},scout:{mass:1.6,maxSpeed:290,acceleration:1240},dribbler:{mass:2.1,maxSpeed:210,acceleration:920},cannon:{mass:2.5,maxSpeed:184,acceleration:760},sweeper:{mass:3,maxSpeed:220,acceleration:1200},goalkeeper:{mass:3.8,maxSpeed:150,acceleration:1000}} as const)[archetype];}
 
   start(){
     if(this.state.status==='ready') { this.paused=false; this.kickoffTimer=0.75; this.kickoffRaceTicks=180; this.kickoffSafetyTimer=5; this.kickoffFirstKickPending=true; this.state.status='running'; this.recordEvent({type:'kickoff',x:this.state.ball.x,y:this.state.ball.y}); }
@@ -179,6 +180,7 @@ export class MatchSimulation {
 
     this.decideAndMoveRobots(dt);
     this.resolveRobotRobotCollisions();
+    for(const robot of this.state.robots){robot.x=this.clamp(robot.x,28,this.field.width-28);robot.y=this.clamp(robot.y,28,this.field.height-28);if(robot.archetype==='goalkeeper'){robot.y=robot.homeY;robot.vy=0;}}
     if(this.kickoffTimer<=0) this.resolveRobotBallCollisions();
     this.integrateBall(dt);
     this.resolveGoalOrWalls();
@@ -460,6 +462,8 @@ export class MatchSimulation {
     const impulse=Math.abs(desiredVy-beforeY)*b.mass;
     this.applyBallImpulse(0,desiredVy-beforeY);
     this.sweeperClearTeam=robot.team;
+    const ownAreaBoundary=robot.team==='blue'?this.field.height-GOAL_AREA.depth:GOAL_AREA.depth;
+    this.sweeperClearNeedsExit=robot.team==='blue'?b.y>=ownAreaBoundary:b.y<=ownAreaBoundary;
     robot.clearImpulse=impulse; robot.clearCooldown=0.35; robot.sweeperState='CLEAR_KICK'; robot.action='KICK'; robot.kickCooldown=0.45; robot.kickLockout=0.1;
     this.recordEvent({type:'kick',ids:[robot.id],x:b.x,y:b.y,impulse,vyBefore:beforeY,vxBefore:beforeX,vxAfter:b.vx,vyAfter:b.vy,reason:`sweeper clear after physical contact, forward=${attackY.toFixed(3)}`,direction:{x:0,y:attackY},power:impulse,candidate:robot.id});
   }
@@ -496,7 +500,10 @@ export class MatchSimulation {
   private integrateBall(dt:number){
     const b=this.state.ball;b.x+=b.vx*dt;b.y+=b.vy*dt;
     b.vx*=Math.pow(DAMPING,dt);b.vy*=Math.pow(DAMPING,dt);
-    if(this.sweeperClearTeam){const inOpponentHalf=this.sweeperClearTeam==='blue'?b.y<this.field.height/2:b.y>this.field.height/2;if(inOpponentHalf){const speedAfterClear=Math.hypot(b.vx,b.vy);if(speedAfterClear>360){b.vx=b.vx/speedAfterClear*360;b.vy=b.vy/speedAfterClear*360;}}}
+    if(this.sweeperClearTeam&&this.sweeperClearNeedsExit){
+      const crossedOwnGoalArea=this.sweeperClearTeam==='blue'?b.y<this.field.height-GOAL_AREA.depth:b.y>GOAL_AREA.depth;
+      if(crossedOwnGoalArea){const speedAfterClear=Math.hypot(b.vx,b.vy);if(speedAfterClear>SWEEPER_EXIT_SPEED){b.vx=b.vx/speedAfterClear*SWEEPER_EXIT_SPEED;b.vy=b.vy/speedAfterClear*SWEEPER_EXIT_SPEED;}this.sweeperClearNeedsExit=false;}
+    }
     const speed=Math.hypot(b.vx,b.vy);if(speed>MAX_SPEED){b.vx=b.vx/speed*MAX_SPEED;b.vy=b.vy/speed*MAX_SPEED;}
     if(Math.hypot(b.vx,b.vy)<2){b.vx=0;b.vy=0;}
   }
