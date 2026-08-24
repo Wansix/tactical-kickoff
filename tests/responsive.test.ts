@@ -33,6 +33,22 @@ describe('responsive portrait presentation contract', () => {
     expect(scene).not.toContain('this.field.y-80');
   });
 
+  it('exposes top-level Main/Test mode tabs and keeps the internal lab switch hidden', () => {
+    expect(main).toContain('id="mode-main"');
+    expect(main).toContain('id="mode-test"');
+    expect(main).toContain('aria-selected');
+    expect(main).toContain("document.querySelector<HTMLButtonElement>('.lab-menu-button')?.click()");
+    expect(css).toContain('.mode-tabs');
+    expect(css).toContain('.mode-tab{min-height:48px');
+    expect(css).toContain('.lab-menu-button{display:none!important}');
+  });
+
+  it('keeps the side panel bounded in landscape mode and stacks only in portrait', () => {
+    expect(css).toContain('max-height:calc(100vh - 190px)');
+    expect(css).toContain('@media(max-width:900px) and (orientation:landscape)');
+    expect(css).toContain('main{display:flex;flex-direction:column}');
+  });
+
   it('exposes Korean controls and role descriptions', () => {
     expect(main).toContain('경기 시작');
     expect(main).toContain('일시정지');
