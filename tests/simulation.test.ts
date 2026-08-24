@@ -380,11 +380,14 @@ describe('MatchSimulation', () => {
     expect(striker.action).toBe('PRESS');
   });
 
-  it('deflects a symmetric central kickoff collision deterministically', () => {
-    const run=()=>{const match=new MatchSimulation(1); match.start(); for(let tick=0;tick<60;tick++) match.tick(1/60); return match;};
+  it('keeps a symmetric central kickoff deterministic while the preferred striker kicks', () => {
+    const run=()=>{const match=new MatchSimulation(1,MatchSimulation.default3v3Composition()); match.start(); for(let tick=0;tick<60;tick++) match.tick(1/60); return match;};
     const first=run(),second=run();
-    const recovery=first.getEvents().find(event=>event.type==='stuck-recovery'&&event.reason==='deterministic central kickoff deflection');
-    expect(recovery).toBeDefined();
+    const preferred=(first as any).kickoffPreferredTeam as 'blue'|'orange';
+    const striker=`${preferred}-0`;
+    const kick=first.getEvents().find(event=>event.type==='kick'&&event.ids?.[0]===striker);
+    const contact=first.getEvents().find(event=>event.type==='robot-ball-collision'&&event.ids?.[0]===striker);
+    expect(kick).toBeDefined(); expect(contact).toBeDefined(); expect(kick!.tick).toBe(contact!.tick);
     expect(Math.hypot(first.state.ball.vx,first.state.ball.vy)).toBeGreaterThan(200);
     expect(JSON.stringify(first.state)).toBe(JSON.stringify(second.state));
     expect(first.getEvents().map(event=>[event.type,event.tick,event.reason,event.impulse])).toEqual(second.getEvents().map(event=>[event.type,event.tick,event.reason,event.impulse]));
@@ -392,7 +395,7 @@ describe('MatchSimulation', () => {
 
   it('preserves central deflection cooldown across checkpoint restore', () => {
     const original=new MatchSimulation(1); original.start();
-    for(let tick=0;tick<41;tick++) original.tick(1/60);
+    (original as any).centralDeflectionCooldown=0.5;
     const checkpoint=original.checkpoint();
     expect((checkpoint as any).centralDeflectionCooldown).toBeGreaterThan(0);
     const restored=new MatchSimulation(1); restored.restoreCheckpoint(checkpoint);

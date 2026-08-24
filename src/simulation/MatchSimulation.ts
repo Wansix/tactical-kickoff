@@ -97,7 +97,7 @@ export class MatchSimulation {
       const centeredSweeper=archetype==='sweeper';
       const startSlot:StartSlot=goalkeeper?'goalkeeper':centeredSweeper?'center':index===0?'left':'right';
       const laneOffset=startSlot==='left'?-1:1;
-      const seedLane=archetypes.length===3?formationOffset*0.35*(team==='blue'?1:-1):0;
+      const seedLane=0;
       const x=goalkeeper||centeredSweeper?this.field.width/2:this.field.width/2+laneOffset*90+seedLane;
       const y=goalkeeper||centeredSweeper?(team==='blue'?(goalkeeper?this.field.height-GOALKEEPER_HOME_DEPTH:this.field.height-SWEEPER_HOME_DEPTH):(goalkeeper?GOALKEEPER_HOME_DEPTH:SWEEPER_HOME_DEPTH)):(team==='blue'?(index===0?this.field.height-170:this.field.height-310):(index===0?170:310));
       return this.robot(team,index,x,y,archetype,startSlot);
@@ -166,7 +166,6 @@ export class MatchSimulation {
     if(this.safetyGoalPending&&this.kickoffSafetyTimer===0&&this.state.goalResetTimer===0){
       const scoringTeam=this.safetyGoalPending; this.safetyGoalPending=undefined; this.state.score[scoringTeam]++; this.beginGoalReset(scoringTeam); this.recordTelemetry(); return;
     }
-    if(this.kickoffRaceTicks===0)this.kickoffFirstKickPending=false;
     this.ballKickInvuln=Math.max(0,this.ballKickInvuln-dt);
     for(const key of Object.keys(this.ballContactCooldown)) this.ballContactCooldown[key]=Math.max(0,this.ballContactCooldown[key]-dt);
     for(const key of Object.keys(this.robotCollisionCooldown)) this.robotCollisionCooldown[key]=Math.max(0,this.robotCollisionCooldown[key]-dt);
@@ -206,7 +205,8 @@ export class MatchSimulation {
       const side=robot.id.endsWith('1')?90:-90;
       const centerX=this.field.width/2;
       const centerY=this.field.height/2;
-      let targetX=centerX+side,targetY=this.field.height/2-attack*150+(b.y-this.field.height/2)*0.25;
+      const seedBias=this.kickoffFirstKickPending?0:(((this.seed*37)%121)-60)*0.35*(robot.team==='blue'?1:-1);
+      let targetX=centerX+side+seedBias,targetY=this.field.height/2-attack*150+(b.y-this.field.height/2)*0.25;
       let action:Action='COVER';
       switch(robot.archetype){
         case 'goalkeeper': {
@@ -309,6 +309,7 @@ export class MatchSimulation {
           break;
         }
       }
+      if(!this.kickoffFirstKickPending&&robot.archetype!=='goalkeeper'&&robot.sweeperState!=='RETURN_TO_POST') targetX=this.clamp(targetX+seedBias,28,this.field.width-28);
       if(robot.archetype==='striker'&&robot.reversalLockTicks>0){
         targetX=robot.moveTargetX; targetY=robot.moveTargetY; robot.vx*=0.25; robot.vy*=0.25; robot.reversalLockTicks--;
       }
@@ -440,9 +441,10 @@ export class MatchSimulation {
     const b=this.state.ball;
     const candidates:Array<{robot:Robot;nx:number;ny:number;distance:number;score:number}>=[];
     for(const robot of [...this.state.robots].sort((a,b2)=>a.id.localeCompare(b2.id))){
-      if(this.kickoffTimer>0&&this.state.robots.length<6) continue;
-      const kickoffOpening=this.state.robots.length>=6&&this.kickoffRaceTicks>0&&Math.abs(b.y-this.field.height/2)<160;
-      if(kickoffOpening&&(robot.team!==this.kickoffPreferredTeam||(this.kickoffFirstKickPending&&(robot.archetype!=='striker'||robot.team!==this.kickoffPreferredTeam)))) continue;
+      const kickoffStrikerExists=this.state.robots.some(candidate=>candidate.team===this.kickoffPreferredTeam&&candidate.archetype==='striker');
+      const kickoffOpening=this.state.robots.length>=6&&kickoffStrikerExists&&(this.kickoffFirstKickPending||this.kickoffRaceTicks>0)&&Math.abs(b.y-this.field.height/2)<160;
+      const preferredKickoffPending=this.state.robots.length>=6&&kickoffStrikerExists&&this.kickoffFirstKickPending&&(robot.archetype!=='striker'||robot.team!==this.kickoffPreferredTeam);
+      if(preferredKickoffPending||kickoffOpening&&robot.team!==this.kickoffPreferredTeam) continue;
       if((this.ballContactCooldown[robot.id]??0)>0) continue;
       const dx=b.x-robot.x,dy=b.y-robot.y,dist=Math.hypot(dx,dy)||1,minDist=robot.radius+b.radius;
       const contactReach=minDist;
@@ -565,7 +567,9 @@ export class MatchSimulation {
   private resolveGoalOrWalls(){
     const b=this.state.ball; const inGoalMouth=b.x>=GOAL_LEFT&&b.x<=GOAL_RIGHT;
     const goalAllowed=this.kickoffSafetyTimer<=0||(this.state.score.blue+this.state.score.orange)>0;
-    if(!goalAllowed&&inGoalMouth&&((b.y<=18&&b.vy<0)||(b.y>=this.field.height-18&&b.vy>0))){
+    const pendingTopGoal=this.safetyGoalPending==='blue'&&b.y<=18;
+    const pendingBottomGoal=this.safetyGoalPending==='orange'&&b.y>=this.field.height-18;
+    if(!goalAllowed&&inGoalMouth&&((b.y<=18&&b.vy<0)||(b.y>=this.field.height-18&&b.vy>0)||pendingTopGoal||pendingBottomGoal)){
       const netHoldDepth=GOAL_GEOMETRY.depth-BALL_RADIUS;
       if(b.y<=18){this.safetyGoalPending='blue';b.y=Math.max(b.y,-netHoldDepth);b.vy*=0.55;}
       else {this.safetyGoalPending='orange';b.y=Math.min(b.y,this.field.height+netHoldDepth);b.vy*=0.55;}
