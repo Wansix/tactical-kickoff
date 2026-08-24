@@ -571,10 +571,18 @@ export class MatchSimulation {
     const pendingBottomGoal=this.safetyGoalPending==='orange'&&b.y>=this.field.height-18;
     if(!goalAllowed&&inGoalMouth&&((b.y<=18&&b.vy<0)||(b.y>=this.field.height-18&&b.vy>0)||pendingTopGoal||pendingBottomGoal)){
       const netHoldDepth=GOAL_GEOMETRY.depth-BALL_RADIUS;
-      if(b.y<=18){this.safetyGoalPending='blue';b.y=Math.max(b.y,-netHoldDepth);b.vy*=0.55;}
-      else {this.safetyGoalPending='orange';b.y=Math.min(b.y,this.field.height+netHoldDepth);b.vy*=0.55;}
+      if(b.y<=18){
+        this.safetyGoalPending='blue';
+        const netEnd=-netHoldDepth;
+        if(b.y>netEnd){b.vy*=0.96;}
+        else {b.y=netEnd;b.vy=0;}
+      } else {
+        this.safetyGoalPending='orange';
+        const netEnd=this.field.height+netHoldDepth;
+        if(b.y<netEnd){b.vy*=0.96;}
+        else {b.y=netEnd;b.vy=0;}
+      }
       b.vx*=0.78;
-      if(Math.abs(b.vy)<8)b.vy=0;
       return;
     }
     if(goalAllowed&&b.y<=18&&b.vy<0&&inGoalMouth){this.state.score.blue++;this.beginGoalReset('blue');return;}
