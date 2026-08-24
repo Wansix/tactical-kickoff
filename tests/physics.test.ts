@@ -131,20 +131,32 @@ describe('physics-first simulation contract', () => {
     (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=2;
     match.state.ball.x=match.field.width/2; match.state.ball.y=30; match.state.ball.vy=-500;
     match.tick(1/30); match.state.ball.vy=0;
-    for(let i=0;i<60;i++)match.tick(1/60);
-    expect(match.state.score.blue).toBe(0);
+    for(let i=0;i<182;i++)match.tick(1/60);
+    const goal=match.getEvents().find(event=>event.type==='goal');
+    expect(goal?.y).toBeLessThan(-90);
+    expect(match.state.score.blue).toBe(1);
+    expect(match.state.goalResetTimer).toBe(0);
+    expect(match.getEvents().filter(event=>event.type==='kickoff')).toHaveLength(2);
     expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
-    expect(match.state.ball.y).toBeLessThan(-50);
+    expect(match.getEvents().filter(event=>event.type==='stuck-recovery')).toHaveLength(0);
+    expect(match.state.ball.x).toBe(match.field.width/2);
+    expect(match.state.ball.y).toBe(match.field.height/2);
   });
 
   it('drives an early bottom goal to the far net depth before reset', () => {
     const match=new MatchSimulation(44); match.start();
     (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=2;
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-30; match.state.ball.vy=500;
-    for(let i=0;i<60;i++)match.tick(1/60);
-    expect(match.state.score.orange).toBe(0);
+    for(let i=0;i<182;i++)match.tick(1/60);
+    const goal=match.getEvents().find(event=>event.type==='goal');
+    expect(goal?.y).toBeGreaterThan(950);
+    expect(match.state.score.orange).toBe(1);
+    expect(match.state.goalResetTimer).toBe(0);
+    expect(match.getEvents().filter(event=>event.type==='kickoff')).toHaveLength(2);
     expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
-    expect(match.state.ball.y).toBeGreaterThan(910);
+    expect(match.getEvents().filter(event=>event.type==='stuck-recovery')).toHaveLength(0);
+    expect(match.state.ball.x).toBe(match.field.width/2);
+    expect(match.state.ball.y).toBe(match.field.height/2);
   });
 
   it('completes early net hold as a normal goal and kickoff reset', () => {

@@ -619,7 +619,7 @@ export class MatchSimulation {
   private resetRobots(){for(const robot of this.state.robots){const formation=this.seedFormation[robot.id];robot.x=formation.x;robot.y=formation.y;robot.vx=0;robot.vy=0;robot.facingX=0;robot.facingY=robot.team==='blue'?-1:1;robot.action='RESET';robot.target='BALL';robot.kickCooldown=0;robot.kickLockout=0;robot.sweeperState='HOLD_POST';robot.backpedal=false;robot.interceptReason='reset to home post';robot.clearImpulse=0;robot.returnTick=0;robot.clearCooldown=0;}}
   private resolveStuckBall(){
     const b=this.state.ball; const movement=Math.hypot(b.x-this.lastBallX,b.y-this.lastBallY); this.lastBallX=b.x;this.lastBallY=b.y;
-    if(this.kickoffTimer>0||this.state.goalResetTimer>0){this.ballStuckTicks=0;return;}
+    if(this.kickoffTimer>0||this.state.goalResetTimer>0||this.safetyGoalPending){this.ballStuckTicks=0;this.cornerStuckTicks=0;this.sideWallStuckTicks=0;return;}
     const corners=[{x:18,y:18,nx:1,ny:1},{x:this.field.width-18,y:18,nx:-1,ny:1},{x:18,y:this.field.height-18,nx:1,ny:-1},{x:this.field.width-18,y:this.field.height-18,nx:-1,ny:-1}];
     const corner=corners.reduce<{x:number;y:number;nx:number;ny:number;distance:number}|null>((best,current)=>{const distance=Math.hypot(b.x-current.x,b.y-current.y);return !best||distance<best.distance?{...current,distance}:best;},null);
     const speed=Math.hypot(b.vx,b.vy);
