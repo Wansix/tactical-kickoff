@@ -50,10 +50,10 @@ export class GameScene extends Phaser.Scene {
 
   swap(team:Team):void { this.sim.swapComposition(team); for(const r of this.sim.state.robots.filter(robot=>robot.team===team)){ this.robotGraphics.get(r.id)?.destroy(); this.robotGraphics.delete(r.id); this.createRobot(r); } this.render(); }
   configureRoster(team:Team, archetypes:[RobotArchetype,RobotArchetype], slots:[StartSlot,StartSlot]):void { this.labMode=false; this.selectedComposition[team]=[...archetypes,'goalkeeper']; this.sim.setComposition(team,archetypes,slots); for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
-  setLabMode(enabled:boolean):void { this.labMode=enabled; if(enabled)this.configureLab(this.labBrain,this.labBody,this.labOpponentBrain,this.labOpponentBody); else this.reset(); }
-  configureLab(brain:RobotArchetype,body:'standard'|'light'|'heavy'|'wide'|'kick-plate',opponentBrain:RobotArchetype='striker',opponentBody:'standard'|'light'|'heavy'|'wide'|'kick-plate'='standard'):void {
+  setLabMode(enabled:boolean):void { this.labMode=enabled; if(enabled)this.configureLab(this.labBrain,this.labBody,this.labOpponentBrain,this.labOpponentBody,true); else this.reset(); }
+  configureLab(brain:RobotArchetype,body:'standard'|'light'|'heavy'|'wide'|'kick-plate',opponentBrain:RobotArchetype='striker',opponentBody:'standard'|'light'|'heavy'|'wide'|'kick-plate'='standard',opponentEnabled=true):void {
     this.labMode=true; this.labBrain=brain; this.labBody=body; this.labOpponentBrain=opponentBrain; this.labOpponentBody=opponentBody;
-    this.sim=new MatchSimulation(2025,{blue:[brain],orange:[opponentBrain]});
+    this.sim=new MatchSimulation(2025,{blue:[brain],orange:opponentEnabled?[opponentBrain]:[]});
     this.applyLabBody(); this.sim.setKickDebugLine(this.debugEnabled);
     for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render();
   }

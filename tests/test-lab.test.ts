@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { SimulationTestArena, detectAnomalies, replayEquivalent, replayCheckpoint, type ScenarioSpec } from '../src/simulation/SimulationQA';
-import { BODY_PROFILES, type BodyPreset } from '../src/presentation/TestLab';
+import { BODY_PROFILES, BRAIN_SHAPES, createLabComposition, type BodyPreset } from '../src/presentation/TestLab';
 
 type Brain='striker'|'sweeper'|'scout'|'dribbler'|'cannon'|'bulwark';
 const brains:Brain[]=['striker','sweeper','scout','dribbler','cannon','bulwark'];
+  it('maps every selectable Brain to its visible robot shape',()=>{
+    expect(BRAIN_SHAPES).toEqual({striker:'circle',sweeper:'square',scout:'diamond',dribbler:'circle',cannon:'hex',bulwark:'square'});
+  });
+  it('omits the opponent roster when opponent mode is disabled',()=>{
+    expect(createLabComposition('striker','sweeper',true)).toEqual({blue:['striker'],orange:['sweeper']});
+    expect(createLabComposition('striker','sweeper',false)).toEqual({blue:['striker'],orange:[]});
+  });
 function scenario(brain:Brain,seed:number):ScenarioSpec{return {id:`lab-${brain}`,seed,durationTicks:180,composition:{blue:[brain,brain],orange:['striker','striker']},ball:{x:270,y:570,vx:0,vy:0},robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,target:'BALL',action:'RESET'}]};}
 
 describe('Robot Test Lab scenarios',()=>{

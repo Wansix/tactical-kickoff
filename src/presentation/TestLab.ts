@@ -3,7 +3,9 @@ import type { RobotArchetype } from '../simulation/MatchSimulation';
 
 export type BodyPreset='standard'|'light'|'heavy'|'wide'|'kick-plate';
 type Brain=Exclude<RobotArchetype,'goalkeeper'>;
-export interface LabConfig { blueBrain:Brain; blueBody:BodyPreset; orangeBrain:Brain; orangeBody:BodyPreset; scenario:string; }
+export interface LabConfig { blueBrain:Brain; blueBody:BodyPreset; orangeBrain:Brain; orangeBody:BodyPreset; opponentEnabled:boolean; scenario:string; }
+export const BRAIN_SHAPES:Record<Brain,'circle'|'square'|'diamond'|'hex'>={striker:'circle',sweeper:'square',scout:'diamond',dribbler:'circle',cannon:'hex',bulwark:'square'};
+export function createLabComposition(blueBrain:Brain,orangeBrain:Brain,opponentEnabled:boolean):{blue:Brain[];orange:Brain[]} { return {blue:[blueBrain],orange:opponentEnabled?[orangeBrain]:[]}; }
 const labels:Record<string,string>={striker:'Striker Brain',sweeper:'Sweeper Brain',scout:'Scout Brain',dribbler:'Dribbler Brain',cannon:'Cannon Brain',bulwark:'Anchor Brain'};
 const brainDescriptions:Record<string,string>={striker:'공을 압박하고 빈틈이 보이면 공격 방향으로 슛합니다.',sweeper:'자기 골대와 공 사이를 지키며 위협을 걷어냅니다.',scout:'공의 이동 경로를 예측해 먼저 도착하려고 합니다.',dribbler:'공을 짧게 여러 번 접촉하며 운반을 시도합니다.',cannon:'좋은 각도와 거리가 나오면 강한 슛을 우선합니다.',bulwark:'뒤쪽을 지키며 위험한 공을 안전한 방향으로 정리합니다.'};
 export const BODY_PROFILES:Record<BodyPreset,{mass:number;maxSpeed:number;acceleration:number;radius:number;label:string}>={
@@ -18,7 +20,7 @@ export class TestLab {
   private root:HTMLElement;
   private report:HTMLElement;
   private last?:ScenarioRun;
-  private history:Array<{brain:string;body:string;opponentBrain:string;opponentBody:string;scenario:string;finalX:number;finalY:number;speed:number;contacts:number;kicks:number;anomalies:number;actions:string;reasons:string}>=[];
+  private history:Array<{brain:string;body:string;opponentBrain:string;opponentBody:string;opponentEnabled:boolean;scenario:string;finalX:number;finalY:number;speed:number;contacts:number;kicks:number;anomalies:number;actions:string;reasons:string}>=[];
   private onConfig?: (config:LabConfig)=>void;
   private onMode?: (active:boolean)=>void;
   private onStart?: ()=>void;
@@ -28,7 +30,7 @@ export class TestLab {
     this.root=document.createElement('section');
     this.root.className='test-lab panel';
     this.root.innerHTML=`<h2>Robot Test Lab · 실제 1v1 경기장</h2><p class="hint">경기장에는 내 로봇 1대와 상대 로봇 1대만 놓입니다. 양쪽 Brain/Body를 바꾸고 실제 움직임을 관찰하세요.</p>
-      <div class="lab-grid"><label>내 Brain <select data-lab="brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select><small data-lab="brain-help"></small></label>
+      <div class="lab-grid"><label class="opponent-toggle"><input type="checkbox" data-lab="opponent-enabled" checked> 상대팀 사용</label><small data-lab="opponent-mode">상대팀 포함 1v1</small><label>내 Brain <select data-lab="brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select><small data-lab="brain-help"></small></label>
       <label>내 Body <select data-lab="body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label>
       <label>상대 Brain <select data-lab="opponent-brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select><small data-lab="opponent-brain-help"></small></label>
       <label>상대 Body <select data-lab="opponent-body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label>
@@ -39,8 +41,17 @@ export class TestLab {
     this.root.querySelector<HTMLButtonElement>('[data-lab="run"]')!.onclick=()=>this.run();
     this.root.querySelector<HTMLButtonElement>('[data-lab="repeat"]')!.onclick=()=>this.repeat();
     this.root.querySelector<HTMLButtonElement>('[data-lab="clear"]')!.onclick=()=>{this.last=undefined;this.report.textContent='실행 대기';};
-    this.root.querySelectorAll<HTMLSelectElement>('[data-lab="brain"],[data-lab="opponent-brain"]').forEach(select=>select.onchange=()=>this.updateHelp());
+    this.root.querySelectorAll<HTMLSelectElement>('[data-lab="brain"],[data-lab="opponent-brain"]').forEach(select=>select.onchange=()=>{this.invalidateRepeat();this.updateHelp();this.syncVisual();});
+    this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.onchange=()=>{this.invalidateRepeat();this.updateOpponentControls();this.syncVisual();};
+    this.root.querySelectorAll<HTMLSelectElement>('[data-lab="body"],[data-lab="opponent-body"]').forEach(select=>select.onchange=()=>{this.invalidateRepeat();this.syncVisual();});
     this.updateHelp();
+    this.updateOpponentControls();
+  }
+  private invalidateRepeat(){if(this.last){this.last=undefined;this.report.textContent='설정이 변경되었습니다. 새 설정으로 다시 실행하세요.';}}
+  private updateOpponentControls(){
+    const enabled=this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked;
+    this.root.querySelectorAll<HTMLSelectElement>('[data-lab="opponent-brain"],[data-lab="opponent-body"]').forEach(select=>{select.disabled=!enabled;});
+    this.root.querySelector<HTMLElement>('[data-lab="opponent-mode"]')!.textContent=enabled?'상대팀 포함 1v1':'상대팀 없음 · 단독 실험';
   }
   private updateHelp(){
     const brain=this.value<Brain>('brain'); const opponent=this.value<Brain>('opponent-brain');
@@ -52,13 +63,14 @@ export class TestLab {
     const brain=this.value<Brain>('brain'); const opponentBrain=this.value<Brain>('opponent-brain'); const body=this.value<BodyPreset>('body'); const scenario=this.value<'approach'|'threat'|'wall'|'contact'>('scenario');
     const seed=Number(this.root.querySelector<HTMLInputElement>('[data-lab="seed"]')!.value)||2025;
     const ball=scenario==='threat'?{x:270,y:760,vx:0,vy:260}:scenario==='wall'?{x:40,y:430,vx:-300,vy:0}:scenario==='contact'?{x:270,y:700,vx:0,vy:180}:{x:270,y:570,vx:0,vy:0};
-    return {...{id:`lab-${brain}-vs-${opponentBrain}-${scenario}`,seed,durationTicks:360,composition:{blue:[brain],orange:[opponentBrain]},ball,robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,action:'RESET',target:'BALL'}]},bodyProfile:body} as ScenarioSpec & {bodyProfile:BodyPreset};
+    const opponentEnabled=this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked;
+    return {...{id:`lab-${brain}-${opponentEnabled?'vs-'+opponentBrain:'solo'}-${scenario}`,seed,durationTicks:360,composition:createLabComposition(brain,opponentBrain,opponentEnabled),ball,robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,action:'RESET',target:'BALL'}]},bodyProfile:body} as ScenarioSpec & {bodyProfile:BodyPreset};
   }
   private configureBody(arena:SimulationTestArena){
     const apply=(id:string,body:BodyPreset)=>{const profile=BODY_PROFILES[body]; const robot=arena.simulation.state.robots.find(candidate=>candidate.id===id); if(robot)Object.assign(robot,profile);};
-    apply('blue-0',this.value<BodyPreset>('body')); apply('orange-0',this.value<BodyPreset>('opponent-body'));
+    apply('blue-0',this.value<BodyPreset>('body')); if(this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked) apply('orange-0',this.value<BodyPreset>('opponent-body'));
   }
-  private syncVisual(){this.onConfig?.({blueBrain:this.value<Brain>('brain'),blueBody:this.value<BodyPreset>('body'),orangeBrain:this.value<Brain>('opponent-brain'),orangeBody:this.value<BodyPreset>('opponent-body'),scenario:this.value('scenario')});}
+  private syncVisual(){this.onConfig?.({blueBrain:this.value<Brain>('brain'),blueBody:this.value<BodyPreset>('body'),orangeBrain:this.value<Brain>('opponent-brain'),orangeBody:this.value<BodyPreset>('opponent-body'),opponentEnabled:this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked,scenario:this.value('scenario')});}
   private run():ScenarioRun{
     this.syncVisual(); this.onStart?.(); const spec=this.makeScenario(); const arena=new SimulationTestArena(spec); this.configureBody(arena); arena.run(); this.last=arena.result(); this.record(this.last); this.render(this.last,undefined); return this.last;
   }
@@ -68,11 +80,14 @@ export class TestLab {
     const frames=run.telemetry.flatMap(frame=>frame.robots).filter(candidate=>candidate.id==='blue-0');
     const actions=[...new Set(frames.map(frame=>frame.action))].join(' → ');
     const reasons=[...new Set(frames.map(frame=>frame.lastDecisionReason).filter(Boolean))].slice(-4).join(' | ');
-    this.history.unshift({brain:this.value('brain'),body:this.value<BodyPreset>('body'),opponentBrain:this.value('opponent-brain'),opponentBody:this.value<BodyPreset>('opponent-body'),scenario:this.value('scenario'),finalX:robot.x,finalY:robot.y,speed:Math.hypot(robot.vx,robot.vy),contacts:run.events.filter(event=>event.type==='robot-ball-collision').length,kicks:run.events.filter(event=>event.type==='kick').length,anomalies:detectAnomalies(run).length,actions,reasons});
+    const opponentEnabled=(run.scenario.composition?.orange?.length??0)>0;
+    this.history.unshift({brain:this.value('brain'),body:this.value<BodyPreset>('body'),opponentBrain:this.value('opponent-brain'),opponentBody:this.value<BodyPreset>('opponent-body'),opponentEnabled,scenario:this.value('scenario'),finalX:robot.x,finalY:robot.y,speed:Math.hypot(robot.vx,robot.vy),contacts:run.events.filter(event=>event.type==='robot-ball-collision').length,kicks:run.events.filter(event=>event.type==='kick').length,anomalies:detectAnomalies(run).length,actions,reasons});
     this.history=this.history.slice(0,8);
   }
   private render(run:ScenarioRun,equal?:boolean){
     const robot=run.state.robots.find(candidate=>candidate.id==='blue-0'); const kicks=run.events.filter(event=>event.type==='kick'); const contacts=run.events.filter(event=>event.type==='robot-ball-collision'); const anomalies=detectAnomalies(run); const status=anomalies.length?'FAIL':'PASS';
-    this.report.innerHTML=`<div class="lab-status ${status.toLowerCase()}"><b>${status}</b> ${labels[this.value('brain')]} × ${BODY_PROFILES[this.value<BodyPreset>('body')].label}${equal===undefined?'':` · replay ${equal?'IDENTICAL':'DIVERGED'}`}</div><div>seed ${run.scenario.seed} · ticks ${run.telemetry.length} · final (${robot?.x.toFixed(1)}, ${robot?.y.toFixed(1)}) · speed ${robot?Math.hypot(robot.vx,robot.vy).toFixed(1):'—'}</div><div>contact ${contacts.length} · kick ${kicks.length} · goal ${run.events.filter(event=>event.type==='goal').length} · anomalies ${anomalies.length}</div>${anomalies.length?`<pre>${anomalies.slice(0,3).map(anomaly=>`${anomaly.kind} @${anomaly.tick}: ${anomaly.message}`).join('\n')}</pre>`:'<small>deterministic scenario contract satisfied</small>'}<hr><b>비교 기록 (${this.history.length})</b><div class="lab-history">${this.history.map((row,index)=>`<div class="lab-history-row"><b>#${index+1} 내 ${labels[row.brain]??row.brain} × ${BODY_PROFILES[row.body as BodyPreset]?.label??row.body} vs 상대 ${labels[row.opponentBrain]??row.opponentBrain} × ${BODY_PROFILES[row.opponentBody as BodyPreset]?.label??row.opponentBody}</b><br><small>${row.scenario} · final ${row.finalX.toFixed(1)},${row.finalY.toFixed(1)} · speed ${row.speed.toFixed(1)} · contact ${row.contacts} · kick ${row.kicks} · ${row.anomalies?'FAIL':'PASS'}</small><br><small>actions: ${row.actions||'—'}<br>reasons: ${row.reasons||'—'}</small></div>`).join('')}</div>`;
+    const opponentEnabled=(run.scenario.composition?.orange?.length??0)>0;
+    const modeLabel=opponentEnabled?`1v1 · 상대 ${labels[this.value('opponent-brain')]} × ${BODY_PROFILES[this.value<BodyPreset>('opponent-body')].label}`:'SOLO · 상대팀 없음';
+    this.report.innerHTML=`<div class="lab-status ${status.toLowerCase()}"><b>${status}</b> ${modeLabel} · 내 ${labels[this.value('brain')]} × ${BODY_PROFILES[this.value<BodyPreset>('body')].label}${equal===undefined?'':` · replay ${equal?'IDENTICAL':'DIVERGED'}`}</div><div>seed ${run.scenario.seed} · ticks ${run.telemetry.length} · final (${robot?.x.toFixed(1)}, ${robot?.y.toFixed(1)}) · speed ${robot?Math.hypot(robot.vx,robot.vy).toFixed(1):'—'}</div><div>contact ${contacts.length} · kick ${kicks.length} · goal ${run.events.filter(event=>event.type==='goal').length} · anomalies ${anomalies.length}</div>${anomalies.length?`<pre>${anomalies.slice(0,3).map(anomaly=>`${anomaly.kind} @${anomaly.tick}: ${anomaly.message}`).join('\n')}</pre>`:'<small>deterministic scenario contract satisfied</small>'}<hr><b>비교 기록 (${this.history.length})</b><div class="lab-history">${this.history.map((row,index)=>`<div class="lab-history-row"><b>#${index+1} ${row.opponentEnabled?'1v1 · 내 '+(labels[row.brain]??row.brain)+' × '+(BODY_PROFILES[row.body as BodyPreset]?.label??row.body)+' vs 상대 '+(labels[row.opponentBrain]??row.opponentBrain)+' × '+(BODY_PROFILES[row.opponentBody as BodyPreset]?.label??row.opponentBody):'SOLO · 내 '+(labels[row.brain]??row.brain)+' × '+(BODY_PROFILES[row.body as BodyPreset]?.label??row.body)+' · 상대팀 없음'}</b><br><small>${row.scenario} · final ${row.finalX.toFixed(1)},${row.finalY.toFixed(1)} · speed ${row.speed.toFixed(1)} · contact ${row.contacts} · kick ${row.kicks} · ${row.anomalies?'FAIL':'PASS'}</small><br><small>actions: ${row.actions||'—'}<br>reasons: ${row.reasons||'—'}</small></div>`).join('')}</div>`;
   }
 }

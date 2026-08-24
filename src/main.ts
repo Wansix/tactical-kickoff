@@ -43,7 +43,7 @@ const bindControls=(scene:GameScene)=>{
   controls.forEach((control)=>control.disabled=false);speed.disabled=false;mainTab.disabled=false;testTab.disabled=false;
 };
 const scene=new GameScene(bindControls);
-const lab=new TestLab(document.querySelector('aside')!,config=>scene.configureLab(config.blueBrain,config.blueBody,config.orangeBrain,config.orangeBody),active=>scene.setLabMode(active),()=>scene.start());
+const lab=new TestLab(document.querySelector('aside')!,config=>scene.configureLab(config.blueBrain,config.blueBody,config.orangeBrain,config.orangeBody,config.opponentEnabled),active=>scene.setLabMode(active),()=>scene.start());
 const setMode=(mode:'main'|'test')=>{
   const test=mode==='test';
   if(test !== !document.querySelector<HTMLElement>('.test-lab')?.hidden) document.querySelector<HTMLButtonElement>('.lab-menu-button')?.click();
