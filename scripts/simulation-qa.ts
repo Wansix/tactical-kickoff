@@ -48,7 +48,9 @@ function run(seed:number):MatchReport{
   const frames=match.getTelemetry(); const events=frames.flatMap(f=>f.events);
   const goals=events.filter(e=>e.type==='goal');
   const blueGoals=goals.filter(e=>e.decision?.scoringTeam==='blue').length,orangeGoals=goals.filter(e=>e.decision?.scoringTeam==='orange').length;
-  const signature=[match.state.score.blue,match.state.score.orange,events.filter(e=>e.type==='kick').length,events.filter(e=>e.type==='wall-bounce').length,Math.round(Math.max(...frames.map(f=>f.ball.x))-Math.min(...frames.map(f=>f.ball.x))),Math.round(Math.max(...frames.map(f=>f.ball.y))-Math.min(...frames.map(f=>f.ball.y)))].join(':');
+  const robotRangeSignature=Object.entries(rangeReport(frames)).sort(([a],[b])=>a.localeCompare(b)).map(([id,range])=>`${id}:${Math.round(range.x/20)}:${Math.round(range.y/20)}`).join('|');
+  const finalBall=frames.at(-1)!.ball;
+  const signature=[match.state.score.blue,match.state.score.orange,events.filter(e=>e.type==='kick').length,events.filter(e=>e.type==='wall-bounce').length,events.filter(e=>e.type==='robot-ball-collision').length,Math.round(Math.max(...frames.map(f=>f.ball.x))-Math.min(...frames.map(f=>f.ball.x))),Math.round(Math.max(...frames.map(f=>f.ball.y))-Math.min(...frames.map(f=>f.ball.y))),Math.round(finalBall.x/20),Math.round(finalBall.y/20),robotRangeSignature].join(':');
   const attackingKicks=events.filter(e=>e.type==='kick'&&e.reason?.startsWith('kick:'));
   const firstKick=attackingKicks[0];
   const firstKickTeam=firstKick?.ids?.[0].startsWith('blue')?'blue':firstKick?.ids?.[0].startsWith('orange')?'orange':'none';

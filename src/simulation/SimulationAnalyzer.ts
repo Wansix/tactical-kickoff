@@ -1,4 +1,4 @@
-import type { TelemetryFrame } from './MatchSimulation';
+import { GOAL_GEOMETRY, type TelemetryFrame } from './MatchSimulation';
 
 export interface SimulationAnalysisReport {
   pass:boolean;
@@ -53,7 +53,11 @@ export function analyzeTelemetry(telemetry:TelemetryFrame[], field={width:540,he
   }
   if(maxCentralStuckSec>3) findings.push(`central stuck interval ${maxCentralStuckSec.toFixed(2)}s`);
 
-  const bounded=telemetry.every(frame=>{const ballInGoalPause=frame.goalResetTimer>0;return (ballInGoalPause|| (frame.ball.x>=0&&frame.ball.x<=field.width&&frame.ball.y>=0&&frame.ball.y<=field.height))&&frame.robots.every(robot=>robot.x>=28&&robot.x<=field.width-28&&robot.y>=28&&robot.y<=field.height-28);});
+  const bounded=telemetry.every(frame=>{
+    const ballInGoalPause=frame.goalResetTimer>0;
+    const ballInGoalNet=frame.ball.x>=GOAL_GEOMETRY.mouthLeft&&frame.ball.x<=GOAL_GEOMETRY.mouthRight&&((frame.ball.y>=-GOAL_GEOMETRY.depth&&frame.ball.y<0)||(frame.ball.y>field.height&&frame.ball.y<=field.height+GOAL_GEOMETRY.depth));
+    return (ballInGoalPause||ballInGoalNet|| (frame.ball.x>=0&&frame.ball.x<=field.width&&frame.ball.y>=0&&frame.ball.y<=field.height))&&frame.robots.every(robot=>robot.x>=28&&robot.x<=field.width-28&&robot.y>=28&&robot.y<=field.height-28);
+  });
   if(!bounded) findings.push('position bounds violated');
 
   return {pass:finite&&allRobotsMoved&&ballMoved&&robotBallContacts>0&&maxCentralStuckSec<=3&&bounded,

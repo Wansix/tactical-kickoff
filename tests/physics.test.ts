@@ -66,8 +66,8 @@ describe('physics-first simulation contract', () => {
   });
 
   it('resets a goal stationary inside the kickoff state', () => {
-    const match = new MatchSimulation(103);
-    match.start(); match.tick(5); match.state.score={blue:0,orange:0}; (match.state as any).goalResetTimer=0; (match as any).kickoffSafetyTimer=0;
+    const match=new MatchSimulation(103);
+    match.start(); match.tick(5); match.state.score={blue:0,orange:0}; (match.state as any).goalResetTimer=0; (match as any).kickoffSafetyTimer=0; (match as any).safetyGoalPending=undefined;
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60);
     expect(match.state.score.blue).toBe(1);
@@ -98,6 +98,32 @@ describe('physics-first simulation contract', () => {
     expect(match.state.score.orange).toBe(1);
     expect(match.state.ball.y).toBeGreaterThan(match.field.height);
     expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
+  });
+
+  it('processes physical striker contact during kickoff protection before allowing a kick', () => {
+    const match=new MatchSimulation(42,MatchSimulation.default3v3Composition()); match.start();
+    for(let i=0;i<60;i++)match.tick(1/60);
+    const preferredTeam=(match as any).kickoffPreferredTeam as 'blue'|'orange';
+    const preferredStrikerId=`${preferredTeam}-0`;
+    const contacts=match.getEvents().filter(event=>event.type==='robot-ball-collision'&&event.ids?.includes(preferredStrikerId));
+    const firstContact=contacts[0]!;
+    expect(firstContact.elapsed).toBeLessThan(3);
+    expect(firstContact.tick).toBeLessThanOrEqual((match.getEvents().find(event=>event.type==='kick')?.tick??Infinity));
+    const firstKick=match.getEvents().find(event=>event.type==='kick'&&event.ids?.includes(preferredStrikerId));
+    expect(firstKick?.causeContactTick).toBe(firstContact.tick);
+    expect(Math.hypot(firstContact.x-match.field.width/2,firstContact.y-match.field.height/2)).toBeLessThan(60);
+    expect(match.getEvents().filter(event=>event.type==='kick'&&event.elapsed<0.75)).toHaveLength(0);
+  });
+
+  it('does not bounce an early kickoff shot out of the goal mouth', () => {
+    const match=new MatchSimulation(42); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=4.9;
+    match.state.ball.x=match.field.width/2; match.state.ball.y=30; match.state.ball.vy=-500;
+    match.tick(1/30);
+    expect(match.state.score.blue).toBe(0);
+    expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
+    expect(match.state.ball.y).toBeLessThan(18);
+    expect(match.state.ball.vy).toBeLessThan(0);
   });
 
   it('allows a fast goal shot to enter the mouth instead of bouncing at the kickoff gate', () => {

@@ -75,7 +75,7 @@ const ROBOT_ACCEL_MULT=2;
 
 export class MatchSimulation {
   readonly field={width:540,height:860}; readonly duration=90; readonly seed:number; private paused=false; private accumulator=0; private tickIndex=0;
-  private kickoffTimer=0; private kickoffRaceTicks=0; private kickoffSafetyTimer=0; private initialKickoffSafety=true; private kickoffPreferredTeam:Team='blue'; private kickoffFirstKickPending=false; private kickDebugLine=false; private ballKickInvuln=0; private ballContactCooldown:Record<string,number>={}; private robotCollisionCooldown:Record<string,number>={}; private ballStuckTicks=0; private cornerStuckTicks=0; private sideWallStuckTicks=0; private sideWallRecoveryLatched=false; private stuckRecoveryCooldown=0; private cornerRecoveryCooldown=0; private centralDeflectionCooldown=0; private goalTeam:Team|undefined; private sweeperClearTeam:Team|undefined; private sweeperClearNeedsExit=false; private wallContact={left:false,right:false,top:false,bottom:false}; private lastBallX=270; private lastBallY=430; private lastKickTeam:Team|undefined; private lastKickX=0; private lastKickY=0; private lastKickElapsed=-10; private kickBurstCount=0; private kickBurstStart=-10; private events:SimulationEvent[]=[]; private telemetry:TelemetryFrame[]=[];
+  private kickoffTimer=0; private kickoffRaceTicks=0; private kickoffSafetyTimer=0; private initialKickoffSafety=true; private kickoffPreferredTeam:Team='blue'; private kickoffFirstKickPending=false; private kickDebugLine=false; private ballKickInvuln=0; private ballContactCooldown:Record<string,number>={}; private robotCollisionCooldown:Record<string,number>={}; private lastRobotBallContactTick:Record<string,number>={}; private ballStuckTicks=0; private cornerStuckTicks=0; private sideWallStuckTicks=0; private sideWallRecoveryLatched=false; private stuckRecoveryCooldown=0; private cornerRecoveryCooldown=0; private centralDeflectionCooldown=0; private goalTeam:Team|undefined; private sweeperClearTeam:Team|undefined; private sweeperClearNeedsExit=false; private wallContact={left:false,right:false,top:false,bottom:false}; private lastBallX=270; private lastBallY=430; private lastKickTeam:Team|undefined; private lastKickX=0; private lastKickY=0; private lastKickElapsed=-10; private kickBurstCount=0; private kickBurstStart=-10; private events:SimulationEvent[]=[]; private telemetry:TelemetryFrame[]=[];
   private readonly seedFormation:Record<string,{x:number;y:number}>;
   state:MatchState;
 
@@ -96,7 +96,9 @@ export class MatchSimulation {
       const goalkeeper=archetype==='goalkeeper';
       const centeredSweeper=archetype==='sweeper';
       const startSlot:StartSlot=goalkeeper?'goalkeeper':centeredSweeper?'center':index===0?'left':'right';
-      const x=goalkeeper||centeredSweeper?this.field.width/2:(startSlot==='left'?this.field.width/2-90:this.field.width/2+90);
+      const laneOffset=startSlot==='left'?-1:1;
+      const seedLane=archetypes.length===3?formationOffset*0.35*(team==='blue'?1:-1):0;
+      const x=goalkeeper||centeredSweeper?this.field.width/2:this.field.width/2+laneOffset*90+seedLane;
       const y=goalkeeper||centeredSweeper?(team==='blue'?(goalkeeper?this.field.height-GOALKEEPER_HOME_DEPTH:this.field.height-SWEEPER_HOME_DEPTH):(goalkeeper?GOALKEEPER_HOME_DEPTH:SWEEPER_HOME_DEPTH)):(team==='blue'?(index===0?this.field.height-170:this.field.height-310):(index===0?170:310));
       return this.robot(team,index,x,y,archetype,startSlot);
     });
@@ -183,7 +185,7 @@ export class MatchSimulation {
     this.decideAndMoveRobots(dt);
     this.resolveRobotRobotCollisions();
     for(const robot of this.state.robots){const minY=robot.archetype==='goalkeeper'?ROBOT_RADIUS:28;const maxY=robot.archetype==='goalkeeper'?this.field.height-ROBOT_RADIUS:this.field.height-28;robot.x=this.clamp(robot.x,28,this.field.width-28);robot.y=this.clamp(robot.y,minY,maxY);}
-    if(this.kickoffTimer<=0) this.resolveRobotBallCollisions();
+    this.resolveRobotBallCollisions();
     this.integrateBall(dt);
     this.resolveGoalOrWalls();
     this.resolveStuckBall();
@@ -435,8 +437,8 @@ export class MatchSimulation {
     const b=this.state.ball;
     const candidates:Array<{robot:Robot;nx:number;ny:number;distance:number;score:number}>=[];
     for(const robot of [...this.state.robots].sort((a,b2)=>a.id.localeCompare(b2.id))){
+      if(this.kickoffTimer>0&&(this.state.robots.length<6||robot.archetype!=='striker'||robot.team!==this.kickoffPreferredTeam)) continue;
       if((this.ballContactCooldown[robot.id]??0)>0) continue;
-
       const dx=b.x-robot.x,dy=b.y-robot.y,dist=Math.hypot(dx,dy)||1,minDist=robot.radius+b.radius;
       const contactReach=minDist;
       if(dist>contactReach+1) continue;
@@ -445,7 +447,7 @@ export class MatchSimulation {
       if(penetration>0){const invBall=1/b.mass,invRobot=1/robot.mass,total=invBall+invRobot;b.x+=nx*penetration*invBall/total;b.y+=ny*penetration*invBall/total;robot.x=this.clamp(robot.x-nx*penetration*invRobot/total,28,this.field.width-28);robot.y=this.clamp(robot.y-ny*penetration*invRobot/total,28,this.field.height-28);}
       if(robot.archetype==='goalkeeper'&&robot.clearCooldown<=0&&!this.kickoffFirstKickPending){
         this.applyGoalkeeperClear(robot);
-        this.ballContactCooldown[robot.id]=8/60;
+        this.lastRobotBallContactTick[robot.id]=this.tickIndex; this.ballContactCooldown[robot.id]=8/60;
         continue;
       }
       const relative=b.vx*nx+b.vy*ny-(robot.vx*nx+robot.vy*ny);
@@ -463,7 +465,7 @@ export class MatchSimulation {
           this.clampRobotVelocity(robot);
           this.recordEvent({type:'robot-ball-collision',ids:[robot.id],x:b.x,y:b.y,impulse,vxBefore:beforeX,vyBefore:beforeY,vxAfter:b.vx,vyAfter:b.vy});
         }
-        this.ballContactCooldown[robot.id]=8/60;
+        this.lastRobotBallContactTick[robot.id]=this.tickIndex; this.ballContactCooldown[robot.id]=8/60;
         if(!ownGoalRisk&&(robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.clearCooldown<=0&&!this.kickoffFirstKickPending&&(robot.team==='blue'?b.y>this.field.height/2:b.y<this.field.height/2)) this.applySweeperClear(robot);
       } else {
         if(ownGoalRisk){
@@ -472,7 +474,7 @@ export class MatchSimulation {
         } else {
           this.recordEvent({type:'robot-ball-collision',ids:[robot.id],x:b.x,y:b.y,impulse:0,vxBefore:b.vx,vyBefore:b.vy,vxAfter:b.vx,vyAfter:b.vy,reason:'physical contact without inward relative velocity'});
         }
-        this.ballContactCooldown[robot.id]=8/60;
+        this.lastRobotBallContactTick[robot.id]=this.tickIndex; this.ballContactCooldown[robot.id]=8/60;
         if(!ownGoalRisk&&(robot.archetype==='bulwark'||robot.archetype==='sweeper')&&robot.clearCooldown<=0&&!this.kickoffFirstKickPending&&(robot.team==='blue'?b.y>this.field.height/2:b.y<this.field.height/2)) this.applySweeperClear(robot);
       }
       const forward=robot.facingX*nx+robot.facingY*ny;
@@ -541,7 +543,7 @@ export class MatchSimulation {
     const deltaVx=b.vx-beforeX,deltaVy=b.vy-beforeY,appliedImpulse=Math.hypot(deltaVx,deltaVy)*b.mass,appliedDirectionLength=Math.hypot(deltaVx,deltaVy)||1,appliedDirectionX=deltaVx/appliedDirectionLength,appliedDirectionY=deltaVy/appliedDirectionLength;
     robot.vx*=0.55;robot.vy*=0.55;robot.kickCooldown=robot.archetype==='cannon'?1.1:0.85;robot.kickLockout=0.10;robot.action=robot.archetype==='cannon'?'SHOOT':'KICK';robot.lastKickAt=this.state.elapsed;robot.kickTarget='OPPONENT_GOAL';robot.kickDirectionX=appliedDirectionX;robot.kickDirectionY=appliedDirectionY;robot.kickPower=appliedImpulse;robot.lastDecisionReason=`kick: forward=${forward.toFixed(3)}, range=${Math.hypot(b.x-robot.x,b.y-robot.y).toFixed(1)}, cooldown=0, candidate=${robot.id}`;
     this.ballKickInvuln=0.18;this.lastKickTeam=robot.team;this.lastKickX=b.x;this.lastKickY=b.y;this.lastKickElapsed=this.state.elapsed;this.kickoffFirstKickPending=false;if(this.state.elapsed-this.kickBurstStart>0.8)this.kickBurstStart=this.state.elapsed;this.kickBurstCount++;
-    this.recordEvent({type:'kick',ids:[robot.id],x:b.x,y:b.y,impulse:appliedImpulse,vxBefore:beforeX,vyBefore:beforeY,vxAfter:b.vx,vyAfter:b.vy,reason:robot.lastDecisionReason,direction:{x:appliedDirectionX,y:appliedDirectionY},power:appliedImpulse,candidate:robot.id});
+    this.recordEvent({type:'kick',ids:[robot.id],x:b.x,y:b.y,impulse:appliedImpulse,vxBefore:beforeX,vyBefore:beforeY,vxAfter:b.vx,vyAfter:b.vy,reason:robot.lastDecisionReason,direction:{x:appliedDirectionX,y:appliedDirectionY},power:appliedImpulse,candidate:robot.id,causeContactTick:[...this.events].reverse().find((event:SimulationEvent)=>event.type==='robot-ball-collision'&&event.ids?.includes(robot.id))?.tick});
   }
 
   private integrateBall(dt:number){
@@ -558,6 +560,14 @@ export class MatchSimulation {
   private resolveGoalOrWalls(){
     const b=this.state.ball; const inGoalMouth=b.x>=GOAL_LEFT&&b.x<=GOAL_RIGHT;
     const goalAllowed=this.kickoffSafetyTimer<=0||(this.state.score.blue+this.state.score.orange)>0;
+    if(!goalAllowed&&this.tickIndex<180&&inGoalMouth&&((b.y<=18&&b.vy<0)||(b.y>=this.field.height-18&&b.vy>0))){
+      const netHoldDepth=GOAL_GEOMETRY.depth-BALL_RADIUS;
+      if(b.y<=18){b.y=Math.max(b.y,-netHoldDepth);b.vy*=0.55;}
+      else {b.y=Math.min(b.y,this.field.height+netHoldDepth);b.vy*=0.55;}
+      b.vx*=0.78;
+      if(Math.abs(b.vy)<8)b.vy=0;
+      return;
+    }
     if(goalAllowed&&b.y<=18&&b.vy<0&&inGoalMouth){this.state.score.blue++;this.beginGoalReset('blue');return;}
     if(goalAllowed&&b.y>=this.field.height-18&&b.vy>0&&inGoalMouth){this.state.score.orange++;this.beginGoalReset('orange');return;}
     if(b.x>20)this.wallContact.left=false;
@@ -588,7 +598,7 @@ export class MatchSimulation {
 
   private beginGoalReset(scoringTeam:Team){const b=this.state.ball;this.initialKickoffSafety=false;this.goalTeam=scoringTeam;this.ballStuckTicks=0;this.state.goalResetTimer=1;this.recordEvent({type:'goal',x:b.x,y:b.y,vxBefore:b.vx,vyBefore:b.vy,decision:{scoringTeam}});}
   private advanceGoalBall(dt:number){const b=this.state.ball;const topGoal=this.goalTeam==='blue',goalMin=GOAL_LEFT+BALL_RADIUS,goalMax=GOAL_RIGHT-BALL_RADIUS;b.x+=b.vx*dt;b.y+=b.vy*dt;if(b.x<goalMin){b.x=goalMin;if(b.vx<0)b.vx=Math.abs(b.vx)*0.28;}else if(b.x>goalMax){b.x=goalMax;if(b.vx>0)b.vx=-Math.abs(b.vx)*0.28;}b.vx*=Math.pow(0.78,dt);b.vy*=Math.pow(0.78,dt);const netHoldDepth=GOAL_GEOMETRY.depth-BALL_RADIUS;if(topGoal&&b.y<-netHoldDepth){b.y=-netHoldDepth;b.vy=0;}if(!topGoal&&b.y>this.field.height+netHoldDepth){b.y=this.field.height+netHoldDepth;b.vy=0;}if(Math.hypot(b.vx,b.vy)<8){b.vx=0;b.vy=0;}}
-  private resetBall(){const b=this.state.ball;b.x=this.field.width/2;b.y=this.field.height/2;b.vx=0;b.vy=0;this.goalTeam=undefined;this.sweeperClearTeam=undefined;this.centralDeflectionCooldown=0;this.wallContact={left:false,right:false,top:false,bottom:false};this.resetRobots();this.ballStuckTicks=0;this.lastBallX=b.x;this.lastBallY=b.y;this.state.goalResetTimer=0;this.kickoffTimer=0.75;this.kickoffRaceTicks=180;this.kickoffSafetyTimer=5;this.kickoffPreferredTeam=this.kickoffPreferredTeam==='blue'?'orange':'blue';this.kickoffFirstKickPending=true;this.recordEvent({type:'kickoff',x:b.x,y:b.y});}
+  private resetBall(){const b=this.state.ball;b.x=this.field.width/2;b.y=this.field.height/2;b.vx=0;b.vy=0;this.goalTeam=undefined;this.lastRobotBallContactTick={};this.sweeperClearTeam=undefined;this.centralDeflectionCooldown=0;this.wallContact={left:false,right:false,top:false,bottom:false};this.resetRobots();this.ballStuckTicks=0;this.lastBallX=b.x;this.lastBallY=b.y;this.state.goalResetTimer=0;this.kickoffTimer=0.75;this.kickoffRaceTicks=180;this.kickoffSafetyTimer=5;this.kickoffPreferredTeam=this.kickoffPreferredTeam==='blue'?'orange':'blue';this.kickoffFirstKickPending=true;this.recordEvent({type:'kickoff',x:b.x,y:b.y});}
   private resetRobots(){for(const robot of this.state.robots){const formation=this.seedFormation[robot.id];robot.x=formation.x;robot.y=formation.y;robot.vx=0;robot.vy=0;robot.facingX=0;robot.facingY=robot.team==='blue'?-1:1;robot.action='RESET';robot.target='BALL';robot.kickCooldown=0;robot.kickLockout=0;robot.sweeperState='HOLD_POST';robot.backpedal=false;robot.interceptReason='reset to home post';robot.clearImpulse=0;robot.returnTick=0;robot.clearCooldown=0;}}
   private resolveStuckBall(){
     const b=this.state.ball; const movement=Math.hypot(b.x-this.lastBallX,b.y-this.lastBallY); this.lastBallX=b.x;this.lastBallY=b.y;
@@ -672,6 +682,6 @@ export class MatchSimulation {
   private applyBallImpulse(ix:number,iy:number){const b=this.state.ball;b.vx=this.clamp(b.vx+ix/b.mass,-MAX_SPEED,MAX_SPEED);b.vy=this.clamp(b.vy+iy/b.mass,-MAX_SPEED,MAX_SPEED);}
   private clamp(value:number,min:number,max:number){return Math.max(min,Math.min(max,value));}
   snapshot(){ return JSON.parse(JSON.stringify(this.state)); }
-  checkpoint(){ return JSON.parse(JSON.stringify({seed:this.seed,seedFormation:this.seedFormation,state:this.state,paused:this.paused,accumulator:this.accumulator,tickIndex:this.tickIndex,kickoffTimer:this.kickoffTimer,kickoffRaceTicks:this.kickoffRaceTicks,kickoffSafetyTimer:this.kickoffSafetyTimer,initialKickoffSafety:this.initialKickoffSafety,kickoffPreferredTeam:this.kickoffPreferredTeam,kickoffFirstKickPending:this.kickoffFirstKickPending,ballKickInvuln:this.ballKickInvuln,ballContactCooldown:this.ballContactCooldown,robotCollisionCooldown:this.robotCollisionCooldown,ballStuckTicks:this.ballStuckTicks,cornerStuckTicks:this.cornerStuckTicks,sideWallStuckTicks:this.sideWallStuckTicks,sideWallRecoveryLatched:this.sideWallRecoveryLatched,stuckRecoveryCooldown:this.stuckRecoveryCooldown,cornerRecoveryCooldown:this.cornerRecoveryCooldown,centralDeflectionCooldown:this.centralDeflectionCooldown,goalTeam:this.goalTeam,sweeperClearTeam:this.sweeperClearTeam,wallContact:this.wallContact,lastBallX:this.lastBallX,lastBallY:this.lastBallY,lastKickTeam:this.lastKickTeam,lastKickX:this.lastKickX,lastKickY:this.lastKickY,lastKickElapsed:this.lastKickElapsed,kickBurstCount:this.kickBurstCount,kickBurstStart:this.kickBurstStart,sweeperClearNeedsExit:this.sweeperClearNeedsExit,events:this.events,telemetry:this.telemetry})); }
+  checkpoint(){ return JSON.parse(JSON.stringify({seed:this.seed,seedFormation:this.seedFormation,state:this.state,paused:this.paused,accumulator:this.accumulator,tickIndex:this.tickIndex,kickoffTimer:this.kickoffTimer,kickoffRaceTicks:this.kickoffRaceTicks,kickoffSafetyTimer:this.kickoffSafetyTimer,initialKickoffSafety:this.initialKickoffSafety,kickoffPreferredTeam:this.kickoffPreferredTeam,kickoffFirstKickPending:this.kickoffFirstKickPending,ballKickInvuln:this.ballKickInvuln,ballContactCooldown:this.ballContactCooldown,robotCollisionCooldown:this.robotCollisionCooldown,lastRobotBallContactTick:this.lastRobotBallContactTick,ballStuckTicks:this.ballStuckTicks,cornerStuckTicks:this.cornerStuckTicks,sideWallStuckTicks:this.sideWallStuckTicks,sideWallRecoveryLatched:this.sideWallRecoveryLatched,stuckRecoveryCooldown:this.stuckRecoveryCooldown,cornerRecoveryCooldown:this.cornerRecoveryCooldown,centralDeflectionCooldown:this.centralDeflectionCooldown,goalTeam:this.goalTeam,sweeperClearTeam:this.sweeperClearTeam,wallContact:this.wallContact,lastBallX:this.lastBallX,lastBallY:this.lastBallY,lastKickTeam:this.lastKickTeam,lastKickX:this.lastKickX,lastKickY:this.lastKickY,lastKickElapsed:this.lastKickElapsed,kickBurstCount:this.kickBurstCount,kickBurstStart:this.kickBurstStart,sweeperClearNeedsExit:this.sweeperClearNeedsExit,events:this.events,telemetry:this.telemetry})); }
   restoreCheckpoint(checkpoint:ReturnType<MatchSimulation['checkpoint']>){const value=JSON.parse(JSON.stringify(checkpoint)) as ReturnType<MatchSimulation['checkpoint']>; Object.assign(this,value,{seed:value.seed,seedFormation:value.seedFormation,state:value.state,events:value.events,telemetry:value.telemetry});}
 }
