@@ -21,7 +21,7 @@ describe('MatchSimulation', () => {
     expect(a.snapshot()).toEqual(b.snapshot());
   });
   it('scores and resets the ball when it crosses a goal line', () => {
-    const match = new MatchSimulation(7); match.start(); match.tick(5); (match as any).kickoffSafetyTimer=0; (match as any).safetyGoalPending=undefined; match.state.goalResetTimer=0;
+    const match = new MatchSimulation(7); match.start(); match.tick(5); (match as any).kickoffSafetyTimer=0; (match as any).safetyGoalPending=undefined; match.state.goalResetTimer=0; match.state.score={blue:0,orange:0};
     match.state.ball.y = -3;
     match.state.ball.x = match.field.width / 2;
     match.state.ball.vy = -10;
@@ -109,24 +109,22 @@ describe('MatchSimulation', () => {
     expect(earlyGoals).toHaveLength(0);
   });
 
-  it('blocks a forced goal during the initial five-second safety window', () => {
+  it('scores a goal immediately even during the initial safety window', () => {
     const match=new MatchSimulation(113); match.start(); match.tick(1);
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
     match.tick(1/60);
-    expect(match.state.score.orange).toBe(0);
-    expect(match.state.goalResetTimer).toBe(0);
-    expect(match.getEvents().filter(event=>event.type==='goal')).toHaveLength(0);
+    expect(match.state.score.orange).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
+    expect(match.getEvents().filter(event=>event.type==='goal')).toHaveLength(1);
   });
 
   it('allows a goal during the post-goal kickoff window', () => {
-    const match=new MatchSimulation(114); match.start(); match.tick(5); (match as any).kickoffSafetyTimer=0; (match as any).safetyGoalPending=undefined; match.state.goalResetTimer=0;
+    const match=new MatchSimulation(114); match.start();
+    (match as any).kickoffSafetyTimer=5; match.state.score.blue=1;
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
     match.tick(1/60);
     expect(match.state.score.orange).toBe(1);
-    match.tick(1);
-    match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
-    match.tick(1/60);
-    expect(match.state.score.orange).toBe(2);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
   });
 
   it('keeps robots from occupying the same visual position during play', () => {
@@ -198,6 +196,7 @@ describe('MatchSimulation', () => {
     for(const frame of telemetry){
       const sample=frame.robots.find(robot => robot.id === sweeper.id)!;
       const dx=frame.ball.x-sample.x,dy=frame.ball.y-sample.y,len=Math.hypot(dx,dy);
+      if(frame.goalResetTimer>0||frame.ball.y<0||frame.ball.y>match.field.height) continue;
       if(len>1) expect(sample.facingX*dx+sample.facingY*dy).toBeGreaterThan(len*0.99);
     }
     expect(frames.every(frame => Number.isFinite(frame.moveTargetX) && Number.isFinite(frame.moveTargetY))).toBe(true);

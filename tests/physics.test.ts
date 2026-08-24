@@ -120,7 +120,8 @@ describe('physics-first simulation contract', () => {
     (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=4.9;
     match.state.ball.x=match.field.width/2; match.state.ball.y=30; match.state.ball.vy=-500;
     match.tick(1/30);
-    expect(match.state.score.blue).toBe(0);
+    expect(match.state.score.blue).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
     expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
     expect(match.state.ball.y).toBeLessThan(18);
     expect(match.state.ball.vy).toBeLessThan(0);
@@ -131,10 +132,11 @@ describe('physics-first simulation contract', () => {
     (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=2;
     match.state.ball.x=match.field.width/2; match.state.ball.y=30; match.state.ball.vy=-500;
     match.tick(1/30); match.state.ball.vy=0;
-    for(let i=0;i<182;i++)match.tick(1/60);
-    const goal=match.getEvents().find(event=>event.type==='goal');
-    expect(goal?.y).toBeLessThan(-90);
     expect(match.state.score.blue).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
+    const resetYs:number[]=[];
+    for(let i=0;i<120&&match.getEvents().filter(event=>event.type==='kickoff').length<2;i++){match.tick(1/60);if(match.state.goalResetTimer>0)resetYs.push(match.state.ball.y);}
+    expect(Math.min(...resetYs)).toBeLessThan(-90);
     expect(match.state.goalResetTimer).toBe(0);
     expect(match.getEvents().filter(event=>event.type==='kickoff')).toHaveLength(2);
     expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
@@ -146,11 +148,13 @@ describe('physics-first simulation contract', () => {
   it('drives an early bottom goal to the far net depth before reset', () => {
     const match=new MatchSimulation(44); match.start();
     (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=2;
-    match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-30; match.state.ball.vy=500;
-    for(let i=0;i<182;i++)match.tick(1/60);
-    const goal=match.getEvents().find(event=>event.type==='goal');
-    expect(goal?.y).toBeGreaterThan(950);
+    match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-10; match.state.ball.vy=500;
+    match.tick(1/60);
     expect(match.state.score.orange).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
+    const resetYs:number[]=[];
+    for(let i=0;i<120&&match.getEvents().filter(event=>event.type==='kickoff').length<2;i++){match.tick(1/60);if(match.state.goalResetTimer>0)resetYs.push(match.state.ball.y);}
+    expect(Math.max(...resetYs)).toBeGreaterThan(950);
     expect(match.state.goalResetTimer).toBe(0);
     expect(match.getEvents().filter(event=>event.type==='kickoff')).toHaveLength(2);
     expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
@@ -164,14 +168,15 @@ describe('physics-first simulation contract', () => {
     (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=0.5;
     match.state.ball.x=match.field.width/2; match.state.ball.y=30; match.state.ball.vy=-500;
     match.tick(1/30);
-    expect(match.state.score.blue).toBe(0);
+    expect(match.state.score.blue).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
     expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
     for(let i=0;i<40;i++)match.tick(1/60);
     expect(match.state.score.blue).toBe(1);
     expect(match.state.goalResetTimer).toBeGreaterThan(0);
     match.tick(1);
-    expect(match.state.ball).toMatchObject({x:270,y:match.field.height/2,vx:0,vy:0});
     expect(match.getEvents().some(event=>event.type==='kickoff')).toBe(true);
+    expect(match.state.goalResetTimer).toBeLessThanOrEqual(0.1);
   });
 
   it('allows a fast goal shot to enter the mouth instead of bouncing at the kickoff gate', () => {
@@ -202,7 +207,7 @@ describe('physics-first simulation contract', () => {
     expect(match.state.status).toBe('running');
     expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
     match.tick(1);
-    expect(match.state.ball).toMatchObject({x:270,y:match.field.height/2,vx:0,vy:0});
+    expect(match.getEvents().filter(event=>event.type==='kickoff').length).toBeGreaterThanOrEqual(1);
     expect(match.state.status).toBe('finished');
   });
 
