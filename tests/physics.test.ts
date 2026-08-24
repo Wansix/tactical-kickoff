@@ -102,7 +102,7 @@ describe('physics-first simulation contract', () => {
 
   it('processes physical striker contact during kickoff protection before allowing a kick', () => {
     const match=new MatchSimulation(42,MatchSimulation.default3v3Composition()); match.start();
-    for(let i=0;i<60;i++)match.tick(1/60);
+    for(let i=0;i<120;i++)match.tick(1/60);
     const preferredTeam=(match as any).kickoffPreferredTeam as 'blue'|'orange';
     const preferredStrikerId=`${preferredTeam}-0`;
     const contacts=match.getEvents().filter(event=>event.type==='robot-ball-collision'&&event.ids?.includes(preferredStrikerId));
@@ -124,6 +124,21 @@ describe('physics-first simulation contract', () => {
     expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
     expect(match.state.ball.y).toBeLessThan(18);
     expect(match.state.ball.vy).toBeLessThan(0);
+  });
+
+  it('completes early net hold as a normal goal and kickoff reset', () => {
+    const match=new MatchSimulation(42); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffSafetyTimer=0.5;
+    match.state.ball.x=match.field.width/2; match.state.ball.y=30; match.state.ball.vy=-500;
+    match.tick(1/30);
+    expect(match.state.score.blue).toBe(0);
+    expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
+    for(let i=0;i<40;i++)match.tick(1/60);
+    expect(match.state.score.blue).toBe(1);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
+    match.tick(1);
+    expect(match.state.ball).toMatchObject({x:270,y:match.field.height/2,vx:0,vy:0});
+    expect(match.getEvents().some(event=>event.type==='kickoff')).toBe(true);
   });
 
   it('allows a fast goal shot to enter the mouth instead of bouncing at the kickoff gate', () => {
@@ -215,6 +230,20 @@ describe('physics-first simulation contract', () => {
     expect(blue).toBeGreaterThan(0);
     expect(orange).toBeGreaterThan(0);
     expect(Math.max(blue,orange)).toBeLessThanOrEqual(16);
+  });
+
+  it('lets the deployed 3v3 seed kick on the first physical contact', () => {
+    const match=new MatchSimulation(2025,MatchSimulation.default3v3Composition()); match.start();
+    for(let i=0;i<90;i++) match.tick(1/60);
+    const preferred=(match as any).kickoffPreferredTeam as 'blue'|'orange';
+    const striker=`${preferred}-0`;
+    const events=match.getEvents();
+    const kick=events.find(e=>e.type==='kick'&&e.ids?.[0]===striker);
+    const contact=events.find(e=>e.type==='robot-ball-collision'&&e.ids?.[0]===striker);
+    expect(contact).toBeDefined(); expect(kick).toBeDefined();
+    expect(kick!.tick).toBe(contact!.tick); expect(kick!.causeContactTick).toBe(contact!.tick);
+    expect(kick!.elapsed).toBeLessThan(1);
+    expect(events.some(e=>e.type==='robot-ball-collision'&&e.ids?.[0]!==striker&&e.tick<=kick!.tick)).toBe(false);
   });
 
   it('keeps kickoff defensive clears from preempting the preferred striker first kick', () => {

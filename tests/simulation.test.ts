@@ -21,7 +21,7 @@ describe('MatchSimulation', () => {
     expect(a.snapshot()).toEqual(b.snapshot());
   });
   it('scores and resets the ball when it crosses a goal line', () => {
-    const match = new MatchSimulation(7); match.start(); match.tick(5);
+    const match = new MatchSimulation(7); match.start(); match.tick(5); (match as any).kickoffSafetyTimer=0; (match as any).safetyGoalPending=undefined; match.state.goalResetTimer=0;
     match.state.ball.y = -3;
     match.state.ball.x = match.field.width / 2;
     match.state.ball.vy = -10;
@@ -38,7 +38,7 @@ describe('MatchSimulation', () => {
   it('resets robots to their seed formation with no residual motion after a goal hold', () => {
     const match = new MatchSimulation(112); match.start();
     const formation = match.state.robots.map(robot => ({id:robot.id,x:robot.x,y:robot.y}));
-    match.tick(5);
+    match.tick(5); (match as any).kickoffSafetyTimer=0; (match as any).safetyGoalPending=undefined; match.state.goalResetTimer=0;
     match.state.robots.forEach(robot => { robot.x=270; robot.y=430; robot.vx=90; robot.vy=-40; robot.kickCooldown=0.8; robot.kickLockout=0.1; });
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60); match.tick(1);
@@ -119,7 +119,7 @@ describe('MatchSimulation', () => {
   });
 
   it('allows a goal during the post-goal kickoff window', () => {
-    const match=new MatchSimulation(114); match.start(); match.tick(5);
+    const match=new MatchSimulation(114); match.start(); match.tick(5); (match as any).kickoffSafetyTimer=0; (match as any).safetyGoalPending=undefined; match.state.goalResetTimer=0;
     match.state.ball.x=match.field.width/2; match.state.ball.y=match.field.height-17; match.state.ball.vy=10;
     match.tick(1/60);
     expect(match.state.score.orange).toBe(1);
@@ -185,6 +185,7 @@ describe('MatchSimulation', () => {
   it('runs the migration-safe Sweeper FSM with separated facing and backpedal telemetry', () => {
     const match = new MatchSimulation(4242, {blue:['sweeper','striker'], orange:['striker','striker']});
     match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
     const sweeper = match.state.robots.find(robot => robot.id === 'blue-0')!;
     sweeper.x = 270; sweeper.y = 520;
     match.state.ball.x = 270; match.state.ball.y = 650; match.state.ball.vy = 120;
