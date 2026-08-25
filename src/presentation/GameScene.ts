@@ -108,7 +108,7 @@ export class GameScene extends Phaser.Scene {
     this.input.setDraggable(c);
     c.on('drag',(_pointer:Phaser.Input.Pointer,dragX:number,dragY:number)=>{
       if(this.sim.state.status!=='ready')return;
-      if(this.labMode){c.setPosition(dragX,dragY);return;}
+      if(this.labMode){c.setPosition(dragX,dragY);r.x=this.clamp(dragX-this.field.x,28,this.field.w-28);r.y=this.clamp(dragY-this.field.y,28,this.field.h-28);r.homeX=r.x;r.homeY=r.y;r.moveTargetX=r.x;r.moveTargetY=r.y;return;}
       const minY=r.team==='blue'?this.field.y+this.field.h/2+28:this.field.y+28;
       const maxY=r.team==='blue'?this.field.y+this.field.h-28:this.field.y+this.field.h/2-28;
       const x=this.clamp(dragX,this.field.x+28,this.field.x+this.field.w-28);
