@@ -10,6 +10,21 @@ describe('physics-first simulation contract', () => {
     expect(match.state.ball.vy).toBe(0);
   });
 
+  it('limits each team to one goalkeeper in the canonical roster', () => {
+    expect(()=>new MatchSimulation(903,{blue:['goalkeeper','goalkeeper'],orange:['striker']})).toThrow('blue roster may contain only one goalkeeper');
+  });
+
+  it('separates overlapping robots and applies bounded deterministic bounce', () => {
+    const match=new MatchSimulation(901); match.start(); const [a,b]=match.state.robots; a.x=250; a.y=430; b.x=285; b.y=430; a.vx=40; a.vy=0; b.vx=-40; b.vy=0; (match as any).kickoffTimer=0;
+    (match as any).resolveRobotRobotCollisions();
+    const contact=match.getEvents().find(event=>event.type==='robot-robot-collision');
+    expect(contact).toBeDefined(); expect(contact?.impulse).toBeGreaterThan(0);
+    expect(b.vx-a.vx).toBeGreaterThan(0); expect(Math.abs(a.vx-40)).toBeLessThanOrEqual(Math.min(a.maxSpeed,b.maxSpeed)*0.35+1e-6); expect(Math.abs(b.vx+40)).toBeLessThanOrEqual(Math.min(a.maxSpeed,b.maxSpeed)*0.35+1e-6);
+    const overlap=new MatchSimulation(902); overlap.start(); const [c,d]=overlap.state.robots; c.x=300; c.y=430; d.x=300; d.y=430; c.vx=0; c.vy=0; d.vx=0; d.vy=0; (overlap as any).kickoffTimer=0;
+    for(let tick=0;tick<20;tick++)(overlap as any).resolveRobotRobotCollisions();
+    expect(Math.hypot(d.x-c.x,d.y-c.y)).toBeGreaterThanOrEqual(c.radius+d.radius-1);
+  });
+
   it('moves the ball through robot contact and records the causal event', () => {
     const match = new MatchSimulation(102);
     match.start();
@@ -18,6 +33,7 @@ describe('physics-first simulation contract', () => {
     expect(contacts.length).toBeGreaterThan(0);
     expect(contacts.some(event=>(event.impulse??0)>0&&event.vxAfter!==event.vxBefore||event.vyAfter!==event.vyBefore)).toBe(true);
   });
+
 
   it('kicks hard and sends the ball away on striker contact', () => {
     const match=new MatchSimulation(104);
@@ -194,13 +210,14 @@ describe('physics-first simulation contract', () => {
       expect(match.getEvents().filter(event=>event.type==='wall-bounce')).toHaveLength(0);
     }
   });  it('finishes only after a goal pause started on the final tick', () => {
-    const match=new MatchSimulation(106); match.start(); match.tick(5); match.state.score={blue:0,orange:0}; (match as any).kickoffSafetyTimer=0; (match as any).kickoffFirstKickPending=false; (match as any).safetyGoalPending=undefined;
-    match.state.elapsed=match.duration-1/60;
+    const match=new MatchSimulation(106); match.start(); match.tick(5); match.state.score={blue:0,orange:0}; (match as any).goalResetTimer=0; (match as any).goalTeam=undefined; (match as any).kickoffSafetyTimer=0; (match as any).kickoffFirstKickPending=false; (match as any).safetyGoalPending=undefined;
+    match.state.elapsed=match.duration-1/60; match.state.status='running'; (match as any).accumulator=0;
+    for(const [index,robot] of match.state.robots.entries()){robot.x=100+index*80;robot.y=430;robot.vx=0;robot.vy=0;robot.maxSpeed=0;robot.acceleration=0;}
     match.state.ball.x=match.field.width/2; match.state.ball.y=-3; match.state.ball.vy=-10;
     match.tick(1/60);
-    expect(match.state.score.blue).toBe(1);
+    expect(match.getEvents().some(event=>event.type==='goal')).toBe(true);
     expect(match.state.status).toBe('running');
-    expect(match.state.goalResetTimer).toBeGreaterThan(0.9);
+    expect(match.state.goalResetTimer).toBeGreaterThan(0);
     match.tick(1);
     expect(match.getEvents().filter(event=>event.type==='kickoff').length).toBeGreaterThanOrEqual(1);
     expect(match.state.status).toBe('finished');

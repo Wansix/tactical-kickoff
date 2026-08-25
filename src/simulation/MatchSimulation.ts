@@ -64,6 +64,9 @@ const ROBOT_RADIUS=20;
 const MAX_SPEED=1040;
 const DAMPING=0.82;
 const ROBOT_BALL_RESTITUTION=1.85;
+const ROBOT_ROBOT_RESTITUTION=0.35;
+const ROBOT_ROBOT_CORRECTION=0.20;
+const ROBOT_ROBOT_MAX_DELTA_SPEED=0.35;
 const WALL_BOUNCE=0.75;
 const KICK_POWER=300;
 const SWEEPER_CLEAR_SPEED=900;
@@ -127,6 +130,7 @@ export class MatchSimulation {
       const roster=composition[team];
       if(roster.length<1||roster.length>5) throw new Error(`${team} roster must contain 1 to 5 robots`);
       if(roster.some(archetype=>!ARCHETYPES.includes(archetype))) throw new Error(`${team} roster contains an unknown archetype`);
+      if(roster.filter(archetype=>archetype==='goalkeeper').length>1) throw new Error(`${team} roster may contain only one goalkeeper`);
     }
   }
 
@@ -204,7 +208,7 @@ export class MatchSimulation {
 
     this.decideAndMoveRobots(dt);
     this.resolveRobotRobotCollisions();
-    for(const robot of this.state.robots){const minY=robot.archetype==='goalkeeper'?ROBOT_RADIUS:28;const maxY=robot.archetype==='goalkeeper'?this.field.height-ROBOT_RADIUS:this.field.height-28;robot.x=this.clamp(robot.x,28,this.field.width-28);robot.y=this.clamp(robot.y,minY,maxY);}
+    for(const robot of this.state.robots){const minX=robot.archetype==='goalkeeper'?GOAL_AREA.left+ROBOT_RADIUS:28;const maxX=robot.archetype==='goalkeeper'?GOAL_AREA.right-ROBOT_RADIUS:this.field.width-28;const minY=robot.archetype==='goalkeeper'?(robot.team==='blue'?robot.homeY-GOALKEEPER_STEP_OUT:robot.homeY):28;const maxY=robot.archetype==='goalkeeper'?(robot.team==='blue'?robot.homeY:robot.homeY+GOALKEEPER_STEP_OUT):this.field.height-28;robot.x=this.clamp(robot.x,minX,maxX);robot.y=this.clamp(robot.y,minY,maxY);}
     this.resolveRobotBallCollisions();
     this.integrateBall(dt);
     this.resolveGoalOrWalls();
@@ -395,25 +399,27 @@ export class MatchSimulation {
   private resolveRobotRobotCollisions(){
     const robots=[...this.state.robots].sort((a,b)=>a.id.localeCompare(b.id));
     for(let i=0;i<robots.length;i++) for(let j=i+1;j<robots.length;j++){
-      const a=robots[i],b=robots[j]; const dx=b.x-a.x,dy=b.y-a.y,dist=Math.hypot(dx,dy)||1;
+      const a=robots[i],b=robots[j]; const rawDx=b.x-a.x,rawDy=b.y-a.y,rawDist=Math.hypot(rawDx,rawDy); const dist=rawDist||1; const dx=rawDist>0?rawDx:(((i+1)*17+(j+1)*31)%2?1:-1),dy=rawDist>0?rawDy:(((i+1)*29+(j+1)*13)%2?1:-1);
       const pairKey=`${a.id}+${b.id}`;
-      if((this.robotCollisionCooldown[pairKey]??0)>0) continue;
+      const cooldown=this.robotCollisionCooldown[pairKey]??0;
       const minDist=a.radius+b.radius;
-      if(dist<minDist){
-        const nx=dx/dist,ny=dy/dist,penetration=minDist-dist;
+      if(rawDist<minDist){
+        const nx=dx/dist,ny=dy/dist,penetration=minDist-rawDist;
         const invA=1/a.mass,invB=1/b.mass,totalInvMass=invA+invB;
-        const correctionBias=1.25;
-        const correctionA=penetration*correctionBias*invA/totalInvMass,correctionB=penetration*correctionBias*invB/totalInvMass;
+        const correction=Math.max(0,penetration)*ROBOT_ROBOT_CORRECTION;
+        const correctionA=correction*invA/totalInvMass,correctionB=correction*invB/totalInvMass;
         a.x=this.clamp(a.x-nx*correctionA,28,this.field.width-28); a.y=this.clamp(a.y-ny*correctionA,28,this.field.height-28);
         b.x=this.clamp(b.x+nx*correctionB,28,this.field.width-28); b.y=this.clamp(b.y+ny*correctionB,28,this.field.height-28);
         const relative=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
-        if(relative<0){const impulse=-(1+0.25)*relative/(1/a.mass+1/b.mass);a.vx-=nx*impulse/a.mass;a.vy-=ny*impulse/a.mass;b.vx+=nx*impulse/b.mass;b.vy+=ny*impulse/b.mass;this.clampRobotVelocity(a);this.clampRobotVelocity(b);}
-        else { const separation=64; a.vx-=nx*separation/a.mass; a.vy-=ny*separation/a.mass; b.vx+=nx*separation/b.mass; b.vy+=ny*separation/b.mass; this.clampRobotVelocity(a); this.clampRobotVelocity(b); }
-        this.robotCollisionCooldown[pairKey]=2/60;
-        if(this.kickoffTimer<=0&&a.archetype==='striker') a.reversalLockTicks=Math.max(a.reversalLockTicks,6);
-        if(this.kickoffTimer<=0&&b.archetype==='striker') b.reversalLockTicks=Math.max(b.reversalLockTicks,6);
-        this.recordEvent({type:'robot-robot-collision',ids:[a.id,b.id],x:(a.x+b.x)/2,y:(a.y+b.y)/2,impulse:Math.max(0,-relative)});
-        this.tryCentralKickoffDeflection(a,b);
+        let appliedImpulse=0;
+        if(cooldown<=0&&relative<0){const rawImpulse=-(1+ROBOT_ROBOT_RESTITUTION)*relative/totalInvMass;const maxDelta=Math.min(a.maxSpeed,b.maxSpeed)*ROBOT_ROBOT_MAX_DELTA_SPEED;const maxImpulse=Math.min(maxDelta*a.mass,maxDelta*b.mass);const impulse=Math.min(rawImpulse,maxImpulse);a.vx-=nx*impulse*invA;a.vy-=ny*impulse*invA;b.vx+=nx*impulse*invB;b.vy+=ny*impulse*invB;this.clampRobotVelocity(a);this.clampRobotVelocity(b);appliedImpulse=impulse;this.robotCollisionCooldown[pairKey]=4/60;}
+        if(cooldown>0||relative>=0){const separationSpeed=Math.min(18,Math.min(a.maxSpeed,b.maxSpeed)*0.05);a.vx-=nx*separationSpeed;a.vy-=ny*separationSpeed;b.vx+=nx*separationSpeed;b.vy+=ny*separationSpeed;this.clampRobotVelocity(a);this.clampRobotVelocity(b);}
+        if(appliedImpulse>0){
+          if(this.kickoffTimer<=0&&a.archetype==='striker') a.reversalLockTicks=Math.max(a.reversalLockTicks,6);
+          if(this.kickoffTimer<=0&&b.archetype==='striker') b.reversalLockTicks=Math.max(b.reversalLockTicks,6);
+          this.recordEvent({type:'robot-robot-collision',ids:[a.id,b.id],x:(a.x+b.x)/2,y:(a.y+b.y)/2,impulse:appliedImpulse});
+          this.tryCentralKickoffDeflection(a,b);
+        }
       }
     }
   }
