@@ -32,6 +32,27 @@ describe('physics-first simulation contract', () => {
     expect(moved).toBe(true);
   });
 
+  it('keeps a goalkeeper on the goal line when the ball enters its own half', () => {
+    const match=new MatchSimulation(905,{blue:['goalkeeper'],orange:[]}); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0;
+    const goalkeeper=match.state.robots[0]; match.state.ball.x=410; match.state.ball.y=650; match.state.ball.vx=0; match.state.ball.vy=120;
+    for(let tick=0;tick<45;tick++) match.tick(1/60);
+    expect(goalkeeper.y).toBeGreaterThan(800);
+    expect(goalkeeper.x).toBeGreaterThan(300);
+  });
+
+  it('punches a threatening ball passing beside the goalkeeper', () => {
+    const match=new MatchSimulation(906,{blue:['goalkeeper'],orange:[]}); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false;
+    const goalkeeper=match.state.robots[0]; goalkeeper.x=270; goalkeeper.y=840; goalkeeper.clearCooldown=0;
+    match.state.ball.x=308; match.state.ball.y=840; match.state.ball.vx=0; match.state.ball.vy=220;
+    (match as any).resolveRobotBallCollisions();
+    const punch=match.getEvents().find(event=>event.type==='kick'&&event.ids?.includes(goalkeeper.id));
+    expect(punch).toBeDefined();
+    expect(match.state.ball.vx).toBeGreaterThan(500);
+    expect(match.state.ball.vy).toBeLessThan(500);
+  });
+
   it('limits each team to one goalkeeper in the canonical roster', () => {
     expect(()=>new MatchSimulation(903,{blue:['goalkeeper','goalkeeper'],orange:['striker']})).toThrow('blue roster may contain only one goalkeeper');
   });

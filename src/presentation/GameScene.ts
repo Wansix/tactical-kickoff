@@ -60,8 +60,8 @@ export class GameScene extends Phaser.Scene {
   swap(team:Team):void { this.sim.swapComposition(team); for(const r of this.sim.state.robots.filter(robot=>robot.team===team)){ this.robotGraphics.get(r.id)?.destroy(); this.robotGraphics.delete(r.id); this.createRobot(r); } this.render(); }
   configureRoster(team:Team, archetypes:RobotArchetype[], _slots:StartSlot[]=[]):void { this.labMode=false; this.selectedComposition[team]=[...archetypes]; this.sim=new MatchSimulation(this.seedValue,this.selectedComposition,{seedEnabled:this.seedEnabled}); for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
   setLabMode(enabled:boolean):void { this.labMode=enabled; if(enabled)this.configureLab(this.labBrain,this.labBody,this.labOpponentBrain,this.labOpponentBody,true); else this.reset(); }
-  configureLab(brain:RobotArchetype,body:'standard'|'light'|'heavy'|'wide'|'kick-plate',opponentBrain:RobotArchetype='striker',opponentBody:'standard'|'light'|'heavy'|'wide'|'kick-plate'='standard',opponentEnabled=true,blueRoster?:RobotArchetype[],orangeRoster?:RobotArchetype[],bluePlacement:Array<{x:number;y:number}>=[],orangePlacement:Array<{x:number;y:number}>=[]):void {
-    this.labMode=true; this.labBrain=brain; this.labBody=body; this.labOpponentBrain=opponentBrain; this.labOpponentBody=opponentBody;
+  configureLab(brain:RobotArchetype,body:'standard'|'light'|'heavy'|'wide'|'kick-plate',opponentBrain:RobotArchetype='striker',opponentBody:'standard'|'light'|'heavy'|'wide'|'kick-plate'='standard',opponentEnabled=true,blueRoster?:RobotArchetype[],orangeRoster?:RobotArchetype[],bluePlacement:Array<{x:number;y:number}>=[],orangePlacement:Array<{x:number;y:number}>=[],seedEnabled=this.seedEnabled,seed=this.seedValue):void {
+    this.labMode=true; this.labBrain=brain; this.labBody=body; this.labOpponentBrain=opponentBrain; this.labOpponentBody=opponentBody; this.seedEnabled=seedEnabled; this.seedValue=seed;
     const blue=blueRoster??[brain]; const orange=orangeRoster??[opponentBrain];
     this.sim=new MatchSimulation(this.seedValue,{blue,orange:opponentEnabled?orange:[]},{seedEnabled:this.seedEnabled});
     this.labVisibleIds=new Set([...((blueRoster??[]).map((_,index)=>`blue-${index}`)),...((opponentEnabled?orangeRoster??[]:[]).map((_,index)=>`orange-${index}`))]);
@@ -103,7 +103,7 @@ export class GameScene extends Phaser.Scene {
       nose.beginPath(); nose.moveTo(0,-24); nose.lineTo(-10,-3); nose.lineTo(10,-3); nose.closePath(); nose.fillPath(); nose.strokePath();
       nose.lineStyle(1.5,0x182a36,1); nose.beginPath(); nose.moveTo(0,0); nose.lineTo(0,-38); nose.strokePath();
     }
-    const labelY=r.team==='blue'?27:-42;
+    const labelY=r.archetype==='goalkeeper'?(r.team==='blue'?50:-65):(r.team==='blue'?27:-42);
     const label=this.add.text(-48,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'11px',color:'#d8f0ec',align:'center',fixedWidth:96});
     const visual=this.add.container(0,0,[accent,body,nose]);
     const selectionRing=this.add.graphics(); selectionRing.lineStyle(4,r.team==='blue'?0x9ffff7:0xffd27a,1); selectionRing.strokeCircle(0,0,29); selectionRing.setVisible(false);

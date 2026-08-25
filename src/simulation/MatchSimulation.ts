@@ -51,6 +51,7 @@ export const KICK_RANGE_PROFILES={
   goalkeeper:{distance:34,halfAngleDeg:55},
 } as const;
 const GOALKEEPER_STEP_OUT=70;
+const GOALKEEPER_PUNCH_REACH=38;
 const SWEEPER_HOME_DEPTH=250;
 const BULWARK_HOME_DEPTH=120;
 const GOALKEEPER_HOME_DEPTH=20;
@@ -237,8 +238,10 @@ export class MatchSimulation {
         case 'goalkeeper': {
           const ownAreaNearBall=robot.team==='blue'?b.y>=this.field.height-GOAL_AREA.depth:b.y<=GOAL_AREA.depth;
           const stepOut=ownAreaNearBall?Math.min(GOALKEEPER_STEP_OUT,Math.max(0,Math.abs(b.y-robot.homeY))):0;
+          const ballInOwnHalf=robot.team==='blue'?b.y>=centerY:b.y<=centerY;
+          const ballTowardOwnGoal=robot.team==='blue'?b.vy>35:b.vy< -35;
           targetX=this.clamp(centerX+(b.x-centerX)*0.45,GOAL_AREA.left+ROBOT_RADIUS,GOAL_AREA.right-ROBOT_RADIUS);
-          targetY=robot.homeY+(robot.team==='blue'?-stepOut:stepOut);
+          targetY=ballInOwnHalf&&ballTowardOwnGoal?robot.homeY:robot.homeY+(robot.team==='blue'?-stepOut:stepOut);
           robot.target='GOAL_LINE';action='COVER';break;
         }
         case 'striker': {
@@ -479,7 +482,9 @@ export class MatchSimulation {
     for(const robot of [...this.state.robots].sort((a,b2)=>a.id.localeCompare(b2.id))){
       if((this.ballContactCooldown[robot.id]??0)>0) continue;
       const dx=b.x-robot.x,dy=b.y-robot.y,dist=Math.hypot(dx,dy)||1,minDist=robot.radius+b.radius;
-      const contactReach=minDist;
+      const attackY=robot.team==='blue'?-1:1;
+      const goalkeeperThreat=robot.archetype==='goalkeeper'&&(attackY*b.vy<-35)&&(robot.team==='blue'?b.y>this.field.height-GOAL_AREA.depth-90:b.y<GOAL_AREA.depth+90);
+      const contactReach=robot.archetype==='goalkeeper'&&goalkeeperThreat?GOALKEEPER_PUNCH_REACH:minDist;
       if(dist>contactReach+1) continue;
       const nx=dx/dist,ny=dy/dist;
       const penetration=minDist-dist;
@@ -491,7 +496,6 @@ export class MatchSimulation {
       }
       const relative=b.vx*nx+b.vy*ny-(robot.vx*nx+robot.vy*ny);
       const ownGoalRisk=this.isOwnGoalKickRisk(robot,nx,ny,b);
-      const attackY=robot.team==='blue'?-1:1;
       if(relative<0){
         const impulse=-ROBOT_BALL_RESTITUTION*relative/(1/b.mass+1/robot.mass);
         const beforeX=b.vx,beforeY=b.vy;

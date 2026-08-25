@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SimulationTestArena, detectAnomalies, replayEquivalent, replayCheckpoint, type ScenarioSpec } from '../src/simulation/SimulationQA';
+import { MatchSimulation } from '../src/simulation/MatchSimulation';
 import { BODY_PROFILES, BRAIN_SHAPES, createLabComposition, type BodyPreset } from '../src/presentation/TestLab';
 
 type Brain='striker'|'sweeper'|'scout'|'dribbler'|'cannon'|'bulwark'|'goalkeeper';
@@ -10,6 +11,13 @@ const brains:Brain[]=['striker','sweeper','scout','dribbler','cannon','bulwark',
   it('omits the opponent roster when opponent mode is disabled',()=>{
     expect(createLabComposition('striker','sweeper',true)).toEqual({blue:['striker'],orange:['sweeper']});
     expect(createLabComposition('striker','sweeper',false)).toEqual({blue:['striker'],orange:[]});
+  });
+  it('uses a fresh runtime seed when Seed is disabled',()=>{
+    const random=vi.spyOn(Math,'random').mockReturnValueOnce(0.1).mockReturnValueOnce(0.9);
+    const first=new MatchSimulation(2025,{blue:['goalkeeper'],orange:[]},{seedEnabled:false});
+    const second=new MatchSimulation(2025,{blue:['goalkeeper'],orange:[]},{seedEnabled:false});
+    expect(first.seedEnabled).toBe(false); expect(second.seedEnabled).toBe(false); expect(first.seed).not.toBe(second.seed);
+    random.mockRestore();
   });
 function scenario(brain:Brain,seed:number):ScenarioSpec{return {id:`lab-${brain}`,seed,durationTicks:180,composition:{blue:brain==='goalkeeper'?[brain,'bulwark']:[brain,brain],orange:['striker','striker']},ball:{x:270,y:570,vx:0,vy:0},robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,target:'BALL',action:'RESET'}]};}
 
