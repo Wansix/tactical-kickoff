@@ -52,6 +52,7 @@ const bindControls=(scene:GameScene)=>{
 const scene=new GameScene(bindControls);
 const lab=new TestLab(document.querySelector('aside')!,config=>scene.configureLab(config.blueBrain,config.blueBody,config.orangeBrain,config.orangeBody,config.opponentEnabled,config.blueRoster,config.orangeRoster,config.bluePlacement,config.orangePlacement),active=>scene.setLabMode(active),()=>scene.start());
 scene.setLabRobotMoveHandler((team,index,x,y)=>lab.handleFieldRobotMove(team,index,x,y));
+scene.setLabRobotSelectHandler((team,index)=>lab.selectFieldRobot(team,index));
 const setMode=(mode:'main'|'test')=>{
   const test=mode==='test';
   if(test !== !document.querySelector<HTMLElement>('.test-lab')?.hidden) document.querySelector<HTMLButtonElement>('.lab-menu-button')?.click();
