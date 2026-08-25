@@ -4,7 +4,9 @@ import { robotDebug } from '../simulation/SimulationQA';
 
 export class GameScene extends Phaser.Scene {
   private selectedComposition:TeamComposition=MatchSimulation.default3v3Composition();
-  private sim = new MatchSimulation(2025, MatchSimulation.default3v3Composition());
+  private seedEnabled=false;
+  private seedValue=2025;
+  private sim = new MatchSimulation(2025, MatchSimulation.default3v3Composition(), {seedEnabled:false});
   private robotGraphics = new Map<string, Phaser.GameObjects.Container>();
   private ball!: Phaser.GameObjects.Arc;
   private scoreText!: Phaser.GameObjects.Text;
@@ -47,23 +49,25 @@ export class GameScene extends Phaser.Scene {
   start():void { this.sim.start(); }
   togglePause():void { this.sim.setPaused(this.sim.state.status!=='paused'); }
   setMatchSpeed(speed:number):void { this.speed=speed; }
+  setSeedMode(enabled:boolean,seed=2025):void { this.seedEnabled=enabled; this.seedValue=seed; this.reset(); }
 
   swap(team:Team):void { this.sim.swapComposition(team); for(const r of this.sim.state.robots.filter(robot=>robot.team===team)){ this.robotGraphics.get(r.id)?.destroy(); this.robotGraphics.delete(r.id); this.createRobot(r); } this.render(); }
-  configureRoster(team:Team, archetypes:[RobotArchetype,RobotArchetype], slots:[StartSlot,StartSlot]):void { this.labMode=false; this.selectedComposition[team]=[...archetypes,'goalkeeper']; this.sim.setComposition(team,archetypes,slots); for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
+  configureRoster(team:Team, archetypes:RobotArchetype[], _slots:StartSlot[]=[]):void { this.labMode=false; this.selectedComposition[team]=[...archetypes]; this.sim=new MatchSimulation(this.seedValue,this.selectedComposition,{seedEnabled:this.seedEnabled}); for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
   setLabMode(enabled:boolean):void { this.labMode=enabled; if(enabled)this.configureLab(this.labBrain,this.labBody,this.labOpponentBrain,this.labOpponentBody,true); else this.reset(); }
-  configureLab(brain:RobotArchetype,body:'standard'|'light'|'heavy'|'wide'|'kick-plate',opponentBrain:RobotArchetype='striker',opponentBody:'standard'|'light'|'heavy'|'wide'|'kick-plate'='standard',opponentEnabled=true):void {
+  configureLab(brain:RobotArchetype,body:'standard'|'light'|'heavy'|'wide'|'kick-plate',opponentBrain:RobotArchetype='striker',opponentBody:'standard'|'light'|'heavy'|'wide'|'kick-plate'='standard',opponentEnabled=true,blueRoster?:RobotArchetype[],orangeRoster?:RobotArchetype[]):void {
     this.labMode=true; this.labBrain=brain; this.labBody=body; this.labOpponentBrain=opponentBrain; this.labOpponentBody=opponentBody;
-    this.sim=new MatchSimulation(2025,{blue:[brain],orange:opponentEnabled?[opponentBrain]:[]});
+    const blue=blueRoster?.length?blueRoster:[brain]; const orange=orangeRoster?.length?orangeRoster:[opponentBrain];
+    this.sim=new MatchSimulation(this.seedValue,{blue,orange:opponentEnabled?orange:[]},{seedEnabled:this.seedEnabled});
     this.applyLabBody(); this.sim.setKickDebugLine(this.debugEnabled);
     for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render();
   }
   private applyLabBody():void {
     const profiles={standard:{mass:2,maxSpeed:460,acceleration:2000,radius:20},light:{mass:1.2,maxSpeed:560,acceleration:2400,radius:18},heavy:{mass:3.8,maxSpeed:360,acceleration:1300,radius:23},wide:{mass:2.4,maxSpeed:420,acceleration:1700,radius:28},'kick-plate':{mass:2.1,maxSpeed:440,acceleration:1900,radius:20}};
     const profile=profiles[this.labBody]; const opponentProfile=profiles[this.labOpponentBody];
-    const robot=this.sim.state.robots.find(candidate=>candidate.id==='blue-0'); const opponent=this.sim.state.robots.find(candidate=>candidate.id==='orange-0');
-    if(robot)Object.assign(robot,profile); if(opponent)Object.assign(opponent,opponentProfile);
+    for(const robot of this.sim.state.robots.filter(candidate=>candidate.team==='blue'))Object.assign(robot,profile);
+    for(const opponent of this.sim.state.robots.filter(candidate=>candidate.team==='orange'))Object.assign(opponent,opponentProfile);
   }
-  reset():void { if(this.labMode){this.configureLab(this.labBrain,this.labBody,this.labOpponentBrain,this.labOpponentBody);return;} this.sim=new MatchSimulation(2025,this.selectedComposition);this.sim.setKickDebugLine(this.debugEnabled); for(const c of Array.from(this.robotGraphics.values()))c.destroy();this.robotGraphics.clear();for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
+  reset():void { if(this.labMode){this.configureLab(this.labBrain,this.labBody,this.labOpponentBrain,this.labOpponentBody);return;} this.sim=new MatchSimulation(this.seedValue,this.selectedComposition,{seedEnabled:this.seedEnabled});this.sim.setKickDebugLine(this.debugEnabled); for(const c of Array.from(this.robotGraphics.values()))c.destroy();this.robotGraphics.clear();for(const r of this.sim.state.robots)this.createRobot(r); this.render(); }
   toggleDebug():boolean { this.debugEnabled=!this.debugEnabled; this.sim.setKickDebugLine(this.debugEnabled); this.render(); return this.debugEnabled; }
   inspect(){return this.sim.state.robots.map(robot=>robotDebug(robot));}
   getTelemetry(){return this.sim.getTelemetry();}
@@ -95,8 +99,20 @@ export class GameScene extends Phaser.Scene {
     const visual=this.add.container(0,0,[accent,body,nose]);
     visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);
     const c=this.add.container(this.field.x+r.x,this.field.y+r.y,[visual,label]);
+    c.setSize(54,54).setInteractive({draggable:true,useHandCursor:true});
+    this.input.setDraggable(c);
+    c.on('drag',(_pointer:Phaser.Input.Pointer,dragX:number,dragY:number)=>{
+      if(this.sim.state.status!=='ready'||this.labMode)return;
+      const minY=r.team==='blue'?this.field.y+this.field.h/2+28:this.field.y+28;
+      const maxY=r.team==='blue'?this.field.y+this.field.h-28:this.field.y+this.field.h/2-28;
+      const x=this.clamp(dragX,this.field.x+28,this.field.x+this.field.w-28);
+      const y=this.clamp(dragY,minY,maxY);
+      c.setPosition(x,y); r.x=x-this.field.x; r.y=y-this.field.y; r.homeX=r.x; r.homeY=r.y; r.moveTargetX=r.x; r.moveTargetY=r.y;
+    });
+    c.on('dragend',()=>{if(this.sim.state.status==='ready'&&!this.labMode){r.homeX=r.x;r.homeY=r.y;this.render();}});
     this.robotGraphics.set(r.id,c);
   }
+  private clamp(value:number,min:number,max:number):number{return Math.max(min,Math.min(max,value));}
   private roleLabel(r:Robot):string { return r.archetype==='goalkeeper'?'골키퍼':r.archetype==='bulwark'||r.archetype==='sweeper'?'스위퍼':r.archetype==='striker'?'돌격대장':r.archetype==='scout'?'정찰봇':r.archetype==='dribbler'?'운반봇':'포격봇'; }
   private actionLabel(action:Robot['action']):string { return ({PRESS:'압박',COVER:'커버',CARRY:'운반',KICK:'킥',SHOOT:'강슛',RESET:'복귀'} as Record<Robot['action'],string>)[action]; }
   private renderKickRanges(s:MatchState):void {

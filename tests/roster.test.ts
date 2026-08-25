@@ -77,4 +77,27 @@ describe('3v3 roster and pre-match composition', () => {
     expect(() => match.setComposition('blue', ['scout', 'cannon'], ['left', 'left'])).toThrow(/distinct/);
     expect(match.snapshot().robots.find((robot: { id: string }) => robot.id === 'blue-0')).toMatchObject({ archetype: 'scout', startSlot: 'left' });
   });
+
+  it('supports a physical five-versus-five composition and rejects a sixth robot', () => {
+    const five: RobotArchetype[] = ['striker','sweeper','scout','dribbler','goalkeeper'];
+    const match = new MatchSimulation(505, {blue:five, orange:[...five]});
+    expect(match.state.robots).toHaveLength(10);
+    expect(match.state.robots.filter(robot => robot.team === 'blue')).toHaveLength(5);
+    expect(match.state.robots.filter(robot => robot.team === 'orange')).toHaveLength(5);
+    for (const robot of match.state.robots) {
+      expect(robot.x).toBeGreaterThanOrEqual(robot.radius);
+      expect(robot.x).toBeLessThanOrEqual(match.field.width-robot.radius);
+      if (robot.team === 'blue') expect(robot.y).toBeGreaterThan(match.field.height/2);
+      else expect(robot.y).toBeLessThan(match.field.height/2);
+    }
+    expect(() => new MatchSimulation(506, {blue:[...five,'cannon'], orange:[...five]})).toThrow(/1 to 5/);
+  });
+
+  it('uses a runtime seed when visible seed mode is disabled', () => {
+    const first = new MatchSimulation(2025, MatchSimulation.default3v3Composition(), {seedEnabled:false});
+    const second = new MatchSimulation(2025, MatchSimulation.default3v3Composition(), {seedEnabled:false});
+    expect(first.seedEnabled).toBe(false);
+    expect(first.seed).not.toBe(2025);
+    expect(second.seed).not.toBe(2025);
+  });
 });

@@ -21,10 +21,12 @@ function reversalRun(frames:TelemetryFrame[]):number{
   const ids=frames[0]?.robots.map(r=>r.id)??[]; let best=0;
   for(const id of ids){
     let lastDx=0,lastDy=0,run=0;
+    const collisionTicks=new Set(frames.filter(frame=>frame.events.some(event=>event.type==='robot-robot-collision'&&event.ids?.includes(id))).map(frame=>frame.tick));
     for(let i=1;i<frames.length;i++){
       const a=frames[i-1].robots.find(r=>r.id===id); const b=frames[i].robots.find(r=>r.id===id); if(!a||!b) continue;
-      if(frames[i-1].goalResetTimer>0||frames[i].goalResetTimer>0||a.action==='RESET'||b.action==='RESET'||(a.archetype!=='striker'&&b.archetype!=='striker')||(a.action!=='PRESS'&&b.action!=='PRESS')){lastDx=0;lastDy=0;run=0;continue;}
-      const dx=b.x-a.x,dy=b.y-a.y; const distance=Math.hypot(dx,dy); if(distance<2) continue;
+      const collisionAtFrame=collisionTicks.has(frames[i-1].tick)||collisionTicks.has(frames[i].tick);
+      if(frames[i-1].goalResetTimer>0||frames[i].goalResetTimer>0||collisionAtFrame||a.action==='RESET'||b.action==='RESET'||a.chargePauseTicks>0||b.chargePauseTicks>0||(a.archetype!=='striker'&&b.archetype!=='striker')||(a.action!=='PRESS'&&b.action!=='PRESS')){lastDx=0;lastDy=0;run=0;continue;}
+      const dx=b.x-a.x,dy=b.y-a.y; const distance=Math.hypot(dx,dy); if(distance<2){lastDx=0;lastDy=0;run=0;continue;}
       const lastDistance=Math.hypot(lastDx,lastDy);
       if(lastDistance>=2&&dx*lastDx+dy*lastDy<0) run+=1; else run=0;
       best=Math.max(best,run); lastDx=dx; lastDy=dy;

@@ -3,7 +3,7 @@ import type { RobotArchetype } from '../simulation/MatchSimulation';
 
 export type BodyPreset='standard'|'light'|'heavy'|'wide'|'kick-plate';
 type Brain=Exclude<RobotArchetype,'goalkeeper'>;
-export interface LabConfig { blueBrain:Brain; blueBody:BodyPreset; orangeBrain:Brain; orangeBody:BodyPreset; opponentEnabled:boolean; scenario:string; }
+export interface LabConfig { blueBrain:Brain; blueBody:BodyPreset; orangeBrain:Brain; orangeBody:BodyPreset; opponentEnabled:boolean; scenario:string; blueRoster?:Brain[]; orangeRoster?:Brain[]; }
 export const BRAIN_SHAPES:Record<Brain,'circle'|'square'|'diamond'|'hex'>={striker:'circle',sweeper:'square',scout:'diamond',dribbler:'circle',cannon:'hex',bulwark:'square'};
 export function createLabComposition(blueBrain:Brain,orangeBrain:Brain,opponentEnabled:boolean):{blue:Brain[];orange:Brain[]} { return {blue:[blueBrain],orange:opponentEnabled?[orangeBrain]:[]}; }
 const labels:Record<string,string>={striker:'Striker Brain',sweeper:'Sweeper Brain',scout:'Scout Brain',dribbler:'Dribbler Brain',cannon:'Cannon Brain',bulwark:'Anchor Brain'};
@@ -24,23 +24,29 @@ export class TestLab {
   private onConfig?: (config:LabConfig)=>void;
   private onMode?: (active:boolean)=>void;
   private onStart?: ()=>void;
+  private blueRoster:Brain[]=['striker'];
+  private orangeRoster:Brain[]=['striker'];
   constructor(host:HTMLElement,onConfig?:(config:LabConfig)=>void,onMode?:(active:boolean)=>void,onStart?:()=>void){
     this.onConfig=onConfig; this.onMode=onMode; this.onStart=onStart;
     const menu=document.createElement('button'); menu.className='lab-menu-button'; menu.textContent='🧪 TEST LAB · 실제 1v1 움직임'; menu.onclick=()=>{this.root.hidden=!this.root.hidden; const active=!this.root.hidden; menu.textContent=active?'← 경기 화면으로 돌아가기':'🧪 TEST LAB · 실제 1v1 움직임'; for(const child of Array.from(host.children)){if(child!==menu&&child!==this.root)(child as HTMLElement).hidden=active;} this.onMode?.(active); if(active)this.syncVisual();}; host.prepend(menu);
     this.root=document.createElement('section');
     this.root.className='test-lab panel';
-    this.root.innerHTML=`<h2>Robot Test Lab · 실제 1v1 경기장</h2><p class="hint">경기장에는 내 로봇 1대와 상대 로봇 1대만 놓입니다. 양쪽 Brain/Body를 바꾸고 실제 움직임을 관찰하세요.</p>
+    this.root.innerHTML=`<h2>Robot Test Lab · 최대 5v5</h2><p class="hint">Brain/Body 카드를 만들어 우리팀 또는 상대팀 drop zone으로 드래그하세요. 팀당 최대 5명, 경기 시작 후에는 배치를 잠급니다.</p>
       <div class="lab-grid"><label class="opponent-toggle"><input type="checkbox" data-lab="opponent-enabled" checked> 상대팀 사용</label><small data-lab="opponent-mode">상대팀 포함 1v1</small><label>내 Brain <select data-lab="brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select><small data-lab="brain-help"></small></label>
       <label>내 Body <select data-lab="body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label>
       <label>상대 Brain <select data-lab="opponent-brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select><small data-lab="opponent-brain-help"></small></label>
       <label>상대 Body <select data-lab="opponent-body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label>
       <label>Scenario <select data-lab="scenario"><option value="approach">정면 공 접근</option><option value="threat">자기 골대 위협</option><option value="wall">벽 반사</option><option value="contact">접촉·킥</option></select></label>
-      <label>Seed <input data-lab="seed" type="number" value="2025" min="1" step="1"></label></div>`+`<div class="lab-actions"><button data-lab="run">▶ 1v1 실행</button><button data-lab="repeat">↻ 동일 seed 재실행</button><button data-lab="clear">지우기</button></div><div data-lab="report" class="lab-report" aria-live="polite">실행 대기</div>`;
+      <label>Seed <input data-lab="seed" type="number" value="2025" min="1" step="1"></label></div>
+      <div class="lab-roster-builder"><div class="lab-drop-zone" data-team-drop="blue"><b>우리팀 Blue</b><div data-lab="blue-roster"></div></div><div class="lab-drop-zone" data-team-drop="orange"><b>상대팀 Orange</b><div data-lab="orange-roster"></div></div><button data-lab="add-card">선택한 Brain/Body 카드 추가</button></div>`+`<div class="lab-actions"><button data-lab="run">▶ roster 실행</button><button data-lab="repeat">↻ 동일 seed 재실행</button><button data-lab="clear">지우기</button></div><div data-lab="report" class="lab-report" aria-live="polite">실행 대기</div>`;
     host.append(this.root); this.root.hidden=true;
     this.report=this.root.querySelector('[data-lab="report"]')!;
     this.root.querySelector<HTMLButtonElement>('[data-lab="run"]')!.onclick=()=>this.run();
     this.root.querySelector<HTMLButtonElement>('[data-lab="repeat"]')!.onclick=()=>this.repeat();
     this.root.querySelector<HTMLButtonElement>('[data-lab="clear"]')!.onclick=()=>{this.last=undefined;this.report.textContent='실행 대기';};
+    this.root.querySelector<HTMLButtonElement>('[data-lab="add-card"]')!.onclick=()=>{if(this.blueRoster.length<5)this.blueRoster.push(this.value<Brain>('brain'));if(this.orangeRoster.length<5)this.orangeRoster.push(this.value<Brain>('opponent-brain'));this.syncRosterCards();this.syncVisual();};
+    this.root.querySelectorAll<HTMLElement>('[data-team-drop]').forEach(zone=>{zone.ondragover=event=>event.preventDefault();zone.ondrop=event=>{event.preventDefault();const index=Number(event.dataTransfer?.getData('text/plain'));if(!Number.isInteger(index))return;const team=zone.dataset.teamDrop as 'blue'|'orange';const source=team==='blue'?this.orangeRoster:this.blueRoster;if(source.length>=5)return;const brain=source.splice(index,1)[0];(team==='blue'?this.blueRoster:this.orangeRoster).push(brain);this.syncRosterCards();this.syncVisual();};});
+    this.syncRosterCards();
     this.root.querySelectorAll<HTMLSelectElement>('[data-lab="brain"],[data-lab="opponent-brain"]').forEach(select=>select.onchange=()=>{this.invalidateRepeat();this.updateHelp();this.syncVisual();});
     this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.onchange=()=>{this.invalidateRepeat();this.updateOpponentControls();this.syncVisual();};
     this.root.querySelectorAll<HTMLSelectElement>('[data-lab="body"],[data-lab="opponent-body"]').forEach(select=>select.onchange=()=>{this.invalidateRepeat();this.syncVisual();});
@@ -64,13 +70,14 @@ export class TestLab {
     const seed=Number(this.root.querySelector<HTMLInputElement>('[data-lab="seed"]')!.value)||2025;
     const ball=scenario==='threat'?{x:270,y:760,vx:0,vy:260}:scenario==='wall'?{x:40,y:430,vx:-300,vy:0}:scenario==='contact'?{x:270,y:700,vx:0,vy:180}:{x:270,y:570,vx:0,vy:0};
     const opponentEnabled=this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked;
-    return {...{id:`lab-${brain}-${opponentEnabled?'vs-'+opponentBrain:'solo'}-${scenario}`,seed,durationTicks:360,composition:createLabComposition(brain,opponentBrain,opponentEnabled),ball,robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,action:'RESET',target:'BALL'}]},bodyProfile:body} as ScenarioSpec & {bodyProfile:BodyPreset};
+    return {...{id:`lab-${brain}-${opponentEnabled?'vs-'+opponentBrain:'solo'}-${scenario}`,seed,durationTicks:360,composition:{blue:[...this.blueRoster],orange:opponentEnabled?[...this.orangeRoster]:[]},ball,robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,action:'RESET',target:'BALL'}]},bodyProfile:body} as ScenarioSpec & {bodyProfile:BodyPreset};
   }
   private configureBody(arena:SimulationTestArena){
     const apply=(id:string,body:BodyPreset)=>{const profile=BODY_PROFILES[body]; const robot=arena.simulation.state.robots.find(candidate=>candidate.id===id); if(robot)Object.assign(robot,profile);};
-    apply('blue-0',this.value<BodyPreset>('body')); if(this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked) apply('orange-0',this.value<BodyPreset>('opponent-body'));
+    this.blueRoster.forEach((_,index)=>apply(`blue-${index}`,this.value<BodyPreset>('body'))); if(this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked) this.orangeRoster.forEach((_,index)=>apply(`orange-${index}`,this.value<BodyPreset>('opponent-body')));
   }
-  private syncVisual(){this.onConfig?.({blueBrain:this.value<Brain>('brain'),blueBody:this.value<BodyPreset>('body'),orangeBrain:this.value<Brain>('opponent-brain'),orangeBody:this.value<BodyPreset>('opponent-body'),opponentEnabled:this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked,scenario:this.value('scenario')});}
+  private syncRosterCards(){for(const [team,roster] of [['blue',this.blueRoster] as const,['orange',this.orangeRoster] as const]){const host=this.root.querySelector<HTMLElement>(`[data-lab="${team}-roster"]`);if(!host)continue;host.innerHTML=roster.map((brain:Brain,index:number)=>`<span class="lab-roster-card" draggable="true" data-roster-index="${index}">${index+1}. ${brain} · ${team==='blue'?this.value<BodyPreset>('body'):this.value<BodyPreset>('opponent-body')}</span>`).join('');host.querySelectorAll<HTMLElement>('[data-roster-index]').forEach(card=>card.ondragstart=event=>event.dataTransfer?.setData('text/plain',card.dataset.rosterIndex??'0'));}}
+  private syncVisual(){this.onConfig?.({blueBrain:this.value<Brain>('brain'),blueBody:this.value<BodyPreset>('body'),orangeBrain:this.value<Brain>('opponent-brain'),orangeBody:this.value<BodyPreset>('opponent-body'),opponentEnabled:this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked,scenario:this.value('scenario'),blueRoster:[...this.blueRoster],orangeRoster:[...this.orangeRoster]});}
   private run():ScenarioRun{
     this.syncVisual(); this.onStart?.(); const spec=this.makeScenario(); const arena=new SimulationTestArena(spec); this.configureBody(arena); arena.run(); this.last=arena.result(); this.record(this.last); this.render(this.last,undefined); return this.last;
   }
