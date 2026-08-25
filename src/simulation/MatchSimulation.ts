@@ -11,7 +11,7 @@ export type EventType = 'robot-ball-collision' | 'robot-robot-collision' | 'kick
 
 export interface Robot {
   id:string; team:Team; role:Role; shape:RobotShape; archetype:RobotArchetype;
-  x:number; y:number; vx:number; vy:number; facingX:number; facingY:number; startSlot:StartSlot; homeX:number; homeY:number; lastMoveX:number; lastMoveY:number; reversalRun:number; reversalLockTicks:number; chargePauseTicks:number;
+  x:number; y:number; vx:number; vy:number; facingX:number; facingY:number; startSlot:StartSlot; homeX:number; homeY:number; lastMoveX:number; lastMoveY:number; reversalRun:number; reversalLockTicks:number; chargePauseTicks:number; collisionEscapeTicks:number; collisionEscapeX:number; collisionEscapeY:number;
   radius:number; mass:number; maxSpeed:number; acceleration:number;
   action:Action; target:string; kickCooldown:number; kickLockout:number;
   moveTargetX:number; moveTargetY:number; distanceToBall:number; distanceToTarget:number;
@@ -63,6 +63,9 @@ const BALL_RADIUS=10;
 const ROBOT_RADIUS=20;
 const MAX_SPEED=1040;
 const DAMPING=0.82;
+const ROBOT_COLLISION_ESCAPE_TICKS=36;
+const ROBOT_COLLISION_ESCAPE_DISTANCE=92;
+const TEAM_SUPPORT_LANE_OFFSET=78;
 const ROBOT_BALL_RESTITUTION=1.85;
 const ROBOT_ROBOT_RESTITUTION=0.35;
 const ROBOT_ROBOT_CORRECTION=0.20;
@@ -137,7 +140,7 @@ export class MatchSimulation {
   private robot(team:Team,index:number,x:number,y:number,archetype:RobotArchetype,startSlot:StartSlot):Robot {
     const role:Role=archetype;
     const profile=this.profileForArchetype(archetype);
-    return {id:`${team}-${index}`,team,role,shape:this.shapeForRole(role),archetype,x,y,startSlot,homeX:x,homeY:y,lastMoveX:0,lastMoveY:0,reversalRun:0,reversalLockTicks:0,chargePauseTicks:0,vx:0,vy:0,facingX:0,facingY:team==='blue'?-1:1,radius:ROBOT_RADIUS,
+    return {id:`${team}-${index}`,team,role,shape:this.shapeForRole(role),archetype,x,y,startSlot,homeX:x,homeY:y,lastMoveX:0,lastMoveY:0,reversalRun:0,reversalLockTicks:0,chargePauseTicks:0,collisionEscapeTicks:0,collisionEscapeX:0,collisionEscapeY:0,vx:0,vy:0,facingX:0,facingY:team==='blue'?-1:1,radius:ROBOT_RADIUS,
       mass:profile.mass,maxSpeed:profile.maxSpeed*ROBOT_SPEED_MULT,acceleration:profile.acceleration*ROBOT_ACCEL_MULT,
       action:'RESET',target:'BALL',kickCooldown:0,kickLockout:0,moveTargetX:x,moveTargetY:y,distanceToBall:0,distanceToTarget:0,sweeperState:'HOLD_POST',backpedal:false,interceptReason:'initial formation',clearImpulse:0,returnTick:0,clearCooldown:0,lastDecisionReason:'initial formation',stateChangedAt:0};
   }
@@ -323,6 +326,23 @@ export class MatchSimulation {
           break;
         }
       }
+      const pursuers=canonicalRobots.filter(candidate=>candidate.team===robot.team&&['striker','scout','dribbler'].includes(candidate.archetype)).sort((a,b2)=>Math.hypot(a.x-b.x,a.y-b.y)-Math.hypot(b2.x-b.x,b2.y-b.y)||a.id.localeCompare(b2.id));
+      const teamPursuerCount=canonicalRobots.filter(candidate=>candidate.team===robot.team&&['striker','scout','dribbler'].includes(candidate.archetype)).length;
+      const opposingPursuerCount=canonicalRobots.filter(candidate=>candidate.team!==robot.team&&['striker','scout','dribbler'].includes(candidate.archetype)).length;
+      const supportLanesEnabled=teamPursuerCount>=2&&opposingPursuerCount>=2;
+      const supportRank=pursuers.findIndex(candidate=>candidate.id===robot.id);
+      if(supportLanesEnabled&&supportRank>0&&action==='PRESS'){
+        const laneSide=(supportRank%2===0?1:-1)*(robot.team==='blue'?-1:1);
+        targetX+=laneSide*TEAM_SUPPORT_LANE_OFFSET;
+        targetY+=laneSide*18;
+        robot.lastDecisionReason='support lane reserved to avoid teammate convergence';
+      }
+      if(robot.collisionEscapeTicks>0){
+        targetX=this.clamp(robot.x+robot.collisionEscapeX*ROBOT_COLLISION_ESCAPE_DISTANCE,28,this.field.width-28);
+        targetY=this.clamp(robot.y+robot.collisionEscapeY*ROBOT_COLLISION_ESCAPE_DISTANCE,28,this.field.height-28);
+        robot.collisionEscapeTicks--;
+        robot.lastDecisionReason='post-contact tangent escape';
+      }
       if(!this.kickoffFirstKickPending&&robot.archetype!=='goalkeeper'&&robot.archetype!=='striker'&&robot.sweeperState!=='RETURN_TO_POST') targetX=this.clamp(targetX+seedBias,28,this.field.width-28);
       if(robot.reversalLockTicks>0){robot.vx*=0.25;robot.vy*=0.25;robot.reversalLockTicks--;}
       if(robot.archetype!=='striker'){
@@ -412,7 +432,18 @@ export class MatchSimulation {
         b.x=this.clamp(b.x+nx*correctionB,28,this.field.width-28); b.y=this.clamp(b.y+ny*correctionB,28,this.field.height-28);
         const relative=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
         let appliedImpulse=0;
-        if(cooldown<=0&&relative<0){const rawImpulse=-(1+ROBOT_ROBOT_RESTITUTION)*relative/totalInvMass;const maxDelta=Math.min(a.maxSpeed,b.maxSpeed)*ROBOT_ROBOT_MAX_DELTA_SPEED;const maxImpulse=Math.min(maxDelta*a.mass,maxDelta*b.mass);const impulse=Math.min(rawImpulse,maxImpulse);a.vx-=nx*impulse*invA;a.vy-=ny*impulse*invA;b.vx+=nx*impulse*invB;b.vy+=ny*impulse*invB;this.clampRobotVelocity(a);this.clampRobotVelocity(b);appliedImpulse=impulse;this.robotCollisionCooldown[pairKey]=4/60;}
+        if(cooldown<=0){
+          const tangentX=-ny,tangentY=nx;
+          const hash=Math.abs(this.seed*73856093+this.tickIndex*19349663+a.id.length*83492791+b.id.length*2654435761);
+          const tangentSign=hash%2===0?1:-1;
+          if(a.team===b.team&&['striker','scout','dribbler'].includes(a.archetype)&&['striker','scout','dribbler'].includes(b.archetype)){
+            a.collisionEscapeTicks=Math.max(a.collisionEscapeTicks,ROBOT_COLLISION_ESCAPE_TICKS); b.collisionEscapeTicks=Math.max(b.collisionEscapeTicks,ROBOT_COLLISION_ESCAPE_TICKS);
+            a.collisionEscapeX=tangentX*tangentSign; a.collisionEscapeY=tangentY*tangentSign;
+            b.collisionEscapeX=-tangentX*tangentSign; b.collisionEscapeY=-tangentY*tangentSign;
+          }
+          if(relative<0){const rawImpulse=-(1+ROBOT_ROBOT_RESTITUTION)*relative/totalInvMass;const maxDelta=Math.min(a.maxSpeed,b.maxSpeed)*ROBOT_ROBOT_MAX_DELTA_SPEED;const maxImpulse=Math.min(maxDelta*a.mass,maxDelta*b.mass);const impulse=Math.min(rawImpulse,maxImpulse);a.vx-=nx*impulse*invA;a.vy-=ny*impulse*invA;b.vx+=nx*impulse*invB;b.vy+=ny*impulse*invB;this.clampRobotVelocity(a);this.clampRobotVelocity(b);appliedImpulse=impulse;}
+          this.robotCollisionCooldown[pairKey]=4/60;
+        }
         if(cooldown>0||relative>=0){const separationSpeed=Math.min(18,Math.min(a.maxSpeed,b.maxSpeed)*0.05);a.vx-=nx*separationSpeed;a.vy-=ny*separationSpeed;b.vx+=nx*separationSpeed;b.vy+=ny*separationSpeed;this.clampRobotVelocity(a);this.clampRobotVelocity(b);}
         if(appliedImpulse>0){
           if(this.kickoffTimer<=0&&a.archetype==='striker') a.reversalLockTicks=Math.max(a.reversalLockTicks,6);

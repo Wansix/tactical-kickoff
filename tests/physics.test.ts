@@ -18,6 +18,20 @@ describe('physics-first simulation contract', () => {
     expect(match.getEvents().some(event=>event.type==='robot-ball-collision'||event.type==='kick')).toBe(false);
   });
 
+  it('splits same-team 2v2 strikers after one contact and resumes the ball approach', () => {
+    const match=new MatchSimulation(904,{blue:['striker','striker'],orange:['striker','striker']}); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0;
+    match.state.ball.x=300; match.state.ball.y=260; match.state.ball.vx=0; match.state.ball.vy=0;
+    const blue=match.state.robots.filter(robot=>robot.team==='blue');
+    blue[0].x=270; blue[0].y=420; blue[1].x=272; blue[1].y=420;
+    const firstPositions=blue.map(robot=>({x:robot.x,y:robot.y}));
+    for(let tick=0;tick<180;tick++) match.tick(1/60);
+    const contacts=match.getEvents().filter(event=>event.type==='robot-robot-collision'&&event.ids?.every(id=>id.startsWith('blue-')));
+    const moved=blue.every((robot,index)=>Math.hypot(robot.x-firstPositions[index].x,robot.y-firstPositions[index].y)>80);
+    expect(contacts.length).toBeLessThanOrEqual(2);
+    expect(moved).toBe(true);
+  });
+
   it('limits each team to one goalkeeper in the canonical roster', () => {
     expect(()=>new MatchSimulation(903,{blue:['goalkeeper','goalkeeper'],orange:['striker']})).toThrow('blue roster may contain only one goalkeeper');
   });
