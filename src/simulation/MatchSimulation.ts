@@ -128,7 +128,7 @@ export class MatchSimulation {
   static validateComposition(composition:TeamComposition):void {
     for(const team of ['blue','orange'] as Team[]){
       const roster=composition[team];
-      if(roster.length<1||roster.length>5) throw new Error(`${team} roster must contain 1 to 5 robots`);
+      if(roster.length>5) throw new Error(`${team} roster must contain 1 to 5 robots, or 0 for an empty Test Lab`);
       if(roster.some(archetype=>!ARCHETYPES.includes(archetype))) throw new Error(`${team} roster contains an unknown archetype`);
       if(roster.filter(archetype=>archetype==='goalkeeper').length>1) throw new Error(`${team} roster may contain only one goalkeeper`);
     }

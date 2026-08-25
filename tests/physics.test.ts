@@ -10,6 +10,14 @@ describe('physics-first simulation contract', () => {
     expect(match.state.ball.vy).toBe(0);
   });
 
+  it('keeps an empty Test Lab match free of hidden robot impulses', () => {
+    const match=new MatchSimulation(902,{blue:[],orange:[]}); match.start(); match.tick(2);
+    expect(match.state.robots).toHaveLength(0);
+    expect(match.state.ball.vx).toBe(0);
+    expect(match.state.ball.vy).toBe(0);
+    expect(match.getEvents().some(event=>event.type==='robot-ball-collision'||event.type==='kick')).toBe(false);
+  });
+
   it('limits each team to one goalkeeper in the canonical roster', () => {
     expect(()=>new MatchSimulation(903,{blue:['goalkeeper','goalkeeper'],orange:['striker']})).toThrow('blue roster may contain only one goalkeeper');
   });
