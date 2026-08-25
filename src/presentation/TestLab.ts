@@ -1,6 +1,8 @@
 import { SimulationTestArena, detectAnomalies, replayEquivalent, type ScenarioSpec, type ScenarioRun } from '../simulation/SimulationQA';
 import type { RobotArchetype } from '../simulation/MatchSimulation';
 
+const APP_VERSION=(import.meta.env.VITE_APP_VERSION??'dev').slice(0,7);
+
 export type BodyPreset='standard'|'light'|'heavy'|'wide'|'kick-plate';
 type Brain=RobotArchetype;
 export interface LabConfig { blueBrain:Brain; blueBody:BodyPreset; orangeBrain:Brain; orangeBody:BodyPreset; opponentEnabled:boolean; scenario:string; seedEnabled:boolean; seed:number; blueRoster?:Brain[]; orangeRoster?:Brain[]; bluePlacement?:Array<{x:number;y:number}>; orangePlacement?:Array<{x:number;y:number}>; }
@@ -36,7 +38,7 @@ export class TestLab {
     const menu=document.createElement('button'); menu.className='lab-menu-button'; menu.textContent='🧪 TEST LAB · 실제 1v1 움직임'; menu.onclick=()=>{this.root.hidden=!this.root.hidden; const active=!this.root.hidden; menu.textContent=active?'← 경기 화면으로 돌아가기':'🧪 TEST LAB · 실제 1v1 움직임'; for(const child of Array.from(host.children)){if(child!==menu&&child!==this.root)(child as HTMLElement).hidden=active;} this.onMode?.(active); if(active)this.syncVisual();}; host.prepend(menu);
     this.root=document.createElement('section');
     this.root.className='test-lab panel';
-    this.root.innerHTML=`<h2>Robot Test Lab · 최대 5v5</h2><p class="hint">Brain/Body 카드를 만들어 우리팀 또는 상대팀 drop zone으로 드래그하세요. 팀당 최대 5명, 경기 시작 후에는 배치를 잠급니다.</p>
+    this.root.innerHTML=`<h2>Robot Test Lab <small class="lab-version">v${APP_VERSION}</small> · 최대 5v5</h2><p class="hint">Brain/Body 카드를 만들어 우리팀 또는 상대팀 drop zone으로 드래그하세요. 팀당 최대 5명, 경기 시작 후에는 배치를 잠급니다.</p>
       <div class="lab-grid"><label class="opponent-toggle"><input type="checkbox" data-lab="opponent-enabled" checked> 상대팀 사용</label><small data-lab="opponent-mode">상대팀 포함 1v1</small><label>내 Brain <select data-lab="brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option><option value="goalkeeper">Goalkeeper</option></select><small data-lab="brain-help"></small></label>
       <label>내 Body <select data-lab="body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label>
       <label>상대 Brain <select data-lab="opponent-brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option><option value="goalkeeper">Goalkeeper</option></select><small data-lab="opponent-brain-help"></small></label>
