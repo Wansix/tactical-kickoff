@@ -3,7 +3,7 @@ import type { RobotArchetype } from '../simulation/MatchSimulation';
 
 export type BodyPreset='standard'|'light'|'heavy'|'wide'|'kick-plate';
 type Brain=Exclude<RobotArchetype,'goalkeeper'>;
-export interface LabConfig { blueBrain:Brain; blueBody:BodyPreset; orangeBrain:Brain; orangeBody:BodyPreset; opponentEnabled:boolean; scenario:string; blueRoster?:Brain[]; orangeRoster?:Brain[]; }
+export interface LabConfig { blueBrain:Brain; blueBody:BodyPreset; orangeBrain:Brain; orangeBody:BodyPreset; opponentEnabled:boolean; scenario:string; blueRoster?:Brain[]; orangeRoster?:Brain[]; bluePlacement?:Array<{x:number;y:number}>; orangePlacement?:Array<{x:number;y:number}>; }
 export const BRAIN_SHAPES:Record<Brain,'circle'|'square'|'diamond'|'hex'>={striker:'circle',sweeper:'square',scout:'diamond',dribbler:'circle',cannon:'hex',bulwark:'square'};
 export function createLabComposition(blueBrain:Brain,orangeBrain:Brain,opponentEnabled:boolean):{blue:Brain[];orange:Brain[]} { return {blue:[blueBrain],orange:opponentEnabled?[orangeBrain]:[]}; }
 const labels:Record<string,string>={striker:'Striker Brain',sweeper:'Sweeper Brain',scout:'Scout Brain',dribbler:'Dribbler Brain',cannon:'Cannon Brain',bulwark:'Anchor Brain'};
@@ -24,12 +24,15 @@ export class TestLab {
   private onConfig?: (config:LabConfig)=>void;
   private onMode?: (active:boolean)=>void;
   private onStart?: ()=>void;
-  private blueRoster:Brain[]=['striker'];
-  private orangeRoster:Brain[]=['striker'];
-  private availableRoster:Brain[]=['scout','dribbler','cannon'];
+  private blueRoster:Brain[]=[];
+  private orangeRoster:Brain[]=[];
+  private availableRoster:Brain[]=['striker','sweeper','scout','dribbler','cannon','bulwark'];
   private selectedCard?:{source:'tray'|'blue'|'orange';index:number};
-  constructor(host:HTMLElement,onConfig?:(config:LabConfig)=>void,onMode?:(active:boolean)=>void,onStart?:()=>void){
-    this.onConfig=onConfig; this.onMode=onMode; this.onStart=onStart;
+  private bluePlacement:Array<{x:number;y:number}>=[];
+  private orangePlacement:Array<{x:number;y:number}>=[];
+  private onRobotMove?: (team:'blue'|'orange',index:number,x:number|null,y:number|null)=>void;
+  constructor(host:HTMLElement,onConfig?:(config:LabConfig)=>void,onMode?:(active:boolean)=>void,onStart?:()=>void,onRobotMove?:(team:'blue'|'orange',index:number,x:number|null,y:number|null)=>void){
+    this.onConfig=onConfig; this.onMode=onMode; this.onStart=onStart; this.onRobotMove=onRobotMove;
     const menu=document.createElement('button'); menu.className='lab-menu-button'; menu.textContent='🧪 TEST LAB · 실제 1v1 움직임'; menu.onclick=()=>{this.root.hidden=!this.root.hidden; const active=!this.root.hidden; menu.textContent=active?'← 경기 화면으로 돌아가기':'🧪 TEST LAB · 실제 1v1 움직임'; for(const child of Array.from(host.children)){if(child!==menu&&child!==this.root)(child as HTMLElement).hidden=active;} this.onMode?.(active); if(active)this.syncVisual();}; host.prepend(menu);
     this.root=document.createElement('section');
     this.root.className='test-lab panel';
@@ -40,14 +43,19 @@ export class TestLab {
       <label>상대 Body <select data-lab="opponent-body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label>
       <label>Scenario <select data-lab="scenario"><option value="approach">정면 공 접근</option><option value="threat">자기 골대 위협</option><option value="wall">벽 반사</option><option value="contact">접촉·킥</option></select></label>
       <label>Seed <input data-lab="seed" type="number" value="2025" min="1" step="1"></label></div>
-      <div class="lab-roster-builder"><div class="lab-character-tray" data-team-drop="tray"><b>캐릭터 열 · 대기 중</b><small>로봇을 ground로 드래그하세요. 다시 이곳에 놓으면 제거됩니다.</small><div data-lab="available-roster"></div></div><div class="lab-drop-zone" data-team-drop="blue"><b>우리팀 Blue ground</b><div data-lab="blue-roster"></div></div><div class="lab-drop-zone" data-team-drop="orange"><b>상대팀 Orange ground</b><div data-lab="orange-roster"></div></div><aside class="lab-inspector" data-lab="inspector"><b>로봇을 선택하세요</b><small>로봇을 클릭하면 Brain과 Body를 바꿀 수 있습니다.</small></aside><button data-lab="add-card">선택한 Brain/Body 카드 추가</button></div>`+`<div class="lab-actions"><button data-lab="run">▶ roster 실행</button><button data-lab="repeat">↻ 동일 seed 재실행</button><button data-lab="clear">지우기</button></div><div data-lab="report" class="lab-report" aria-live="polite">실행 대기</div>`;
+      <div class="lab-roster-builder"><div class="lab-character-tray" data-team-drop="tray"><b>대기 로봇</b><small>로봇 그림을 전장으로 드래그하세요. 전장에서 아래로 빼면 대기 로봇으로 돌아옵니다.</small><div data-lab="available-roster"></div></div><aside class="lab-inspector" data-lab="inspector"><b>로봇을 선택하세요</b><small>전장 또는 대기 로봇을 클릭하면 Brain과 Body를 바꿀 수 있습니다.</small></aside><button data-lab="add-card">로봇 추가</button></div>`+`<div class="lab-actions"><button data-lab="run">▶ 테스트 실행</button><button data-lab="repeat">↻ 동일 seed 재실행</button><button data-lab="clear">지우기</button></div><div data-lab="report" class="lab-report" aria-live="polite">배치 대기</div>`;
     host.append(this.root); this.root.hidden=true;
     this.report=this.root.querySelector('[data-lab="report"]')!;
     this.root.querySelector<HTMLButtonElement>('[data-lab="run"]')!.onclick=()=>this.run();
     this.root.querySelector<HTMLButtonElement>('[data-lab="repeat"]')!.onclick=()=>this.repeat();
     this.root.querySelector<HTMLButtonElement>('[data-lab="clear"]')!.onclick=()=>{this.last=undefined;this.report.textContent='실행 대기';};
-    this.root.querySelector<HTMLButtonElement>('[data-lab="add-card"]')!.onclick=()=>{if(this.availableRoster.length<5)this.availableRoster.push(this.value<Brain>('brain'));this.syncRosterCards();this.syncVisual();};
-    this.root.querySelectorAll<HTMLElement>('[data-team-drop]').forEach(zone=>{zone.ondragover=event=>event.preventDefault();zone.ondrop=event=>{event.preventDefault();const raw=event.dataTransfer?.getData('application/x-tactical-roster')||event.dataTransfer?.getData('text/plain');if(!raw)return;let payload:{source:'tray'|'blue'|'orange';index:number};try{payload=JSON.parse(raw)}catch{return;}const destination=zone.dataset.teamDrop as 'blue'|'orange'|'tray';const sourceList=payload.source==='tray'?this.availableRoster:payload.source==='blue'?this.blueRoster:this.orangeRoster;if(!Number.isInteger(payload.index)||!sourceList[payload.index])return;const brain=sourceList.splice(payload.index,1)[0];if(destination==='tray'){this.availableRoster.push(brain);this.selectedCard={source:'tray',index:this.availableRoster.length-1};}else{const target=destination==='blue'?this.blueRoster:this.orangeRoster;if(target.length>=5){sourceList.splice(payload.index,0,brain);return;}target.push(brain);this.selectedCard={source:destination,index:target.length-1};}this.syncRosterCards();this.syncVisual();};});
+    this.root.querySelector<HTMLButtonElement>('[data-lab="add-card"]')!.onclick=()=>{this.availableRoster.push(this.value<Brain>('brain'));this.syncRosterCards();this.syncVisual();};
+    const tray=this.root.querySelector<HTMLElement>('[data-team-drop="tray"]')!;
+    tray.ondragover=event=>event.preventDefault();
+    tray.ondrop=event=>{event.preventDefault();const raw=event.dataTransfer?.getData('application/x-tactical-roster');if(!raw)return;let payload:{source:'blue'|'orange';index:number};try{payload=JSON.parse(raw)}catch{return;}if(payload.source==='blue'||payload.source==='orange')this.onRobotMove?.(payload.source,payload.index,null,null);};
+    const game=document.querySelector<HTMLElement>('#game');
+    game?.addEventListener('dragover',event=>event.preventDefault());
+    game?.addEventListener('drop',event=>{event.preventDefault();const raw=(event as DragEvent).dataTransfer?.getData('application/x-tactical-roster');if(!raw)return;let payload:{source:'tray';index:number};try{payload=JSON.parse(raw)}catch{return;}if(payload.source!=='tray')return;const rect=game.getBoundingClientRect();const x=((event as DragEvent).clientX-rect.left)/rect.width*540;const y=((event as DragEvent).clientY-rect.top)/rect.height*1100-110;const team=y>430?'blue':'orange';const target=team==='blue'?this.blueRoster:this.orangeRoster;if(target.length>=5)return;const brain=this.availableRoster.splice(payload.index,1)[0];if(!brain)return;target.push(brain);const placement={x:Math.max(28,Math.min(512,x)),y:Math.max(28,Math.min(832,y))};(team==='blue'?this.bluePlacement:this.orangePlacement).push(placement);this.selectedCard={source:team,index:target.length-1};this.syncRosterCards();this.syncVisual();});
     this.syncRosterCards();
     this.root.querySelectorAll<HTMLSelectElement>('[data-lab="brain"],[data-lab="opponent-brain"]').forEach(select=>select.onchange=()=>{this.invalidateRepeat();this.updateHelp();this.syncVisual();});
     this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.onchange=()=>{this.invalidateRepeat();this.updateOpponentControls();this.syncVisual();};
@@ -72,7 +80,7 @@ export class TestLab {
     const seed=Number(this.root.querySelector<HTMLInputElement>('[data-lab="seed"]')!.value)||2025;
     const ball=scenario==='threat'?{x:270,y:760,vx:0,vy:260}:scenario==='wall'?{x:40,y:430,vx:-300,vy:0}:scenario==='contact'?{x:270,y:700,vx:0,vy:180}:{x:270,y:570,vx:0,vy:0};
     const opponentEnabled=this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked;
-    return {...{id:`lab-${brain}-${opponentEnabled?'vs-'+opponentBrain:'solo'}-${scenario}`,seed,durationTicks:360,composition:{blue:[...this.blueRoster],orange:opponentEnabled?[...this.orangeRoster]:[]},ball,robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,action:'RESET',target:'BALL'}]},bodyProfile:body} as ScenarioSpec & {bodyProfile:BodyPreset};
+    return {...{id:`lab-${brain}-${opponentEnabled?'vs-'+opponentBrain:'solo'}-${scenario}`,seed,durationTicks:360,composition:{blue:this.blueRoster.length?[...this.blueRoster]:[brain],orange:opponentEnabled?(this.orangeRoster.length?[...this.orangeRoster]:[opponentBrain]):[opponentBrain]},ball,robots:[{id:'blue-0',x:270,y:700,vx:0,vy:0,action:'RESET',target:'BALL'}]},bodyProfile:body} as ScenarioSpec & {bodyProfile:BodyPreset};
   }
   private configureBody(arena:SimulationTestArena){
     const apply=(id:string,body:BodyPreset)=>{const profile=BODY_PROFILES[body]; const robot=arena.simulation.state.robots.find(candidate=>candidate.id===id); if(robot)Object.assign(robot,profile);};
@@ -90,12 +98,17 @@ export class TestLab {
     const selected=this.selectedCard; if(!selected){inspector.innerHTML='<b>로봇을 선택하세요</b><small>로봇을 클릭하면 Brain과 Body를 바꿀 수 있습니다.</small>';return;}
     const list=selected.source==='tray'?this.availableRoster:selected.source==='blue'?this.blueRoster:this.orangeRoster; const brain=list[selected.index]; if(!brain){this.selectedCard=undefined;this.renderInspector();return;}
     const body=selected.source==='orange'?this.value<BodyPreset>('opponent-body'):this.value<BodyPreset>('body');
-    inspector.innerHTML=`<div class="inspector-robot"><span class="lab-robot-avatar brain-${brain}"><span></span></span><div><b>${labels[brain]}</b><small>${selected.source==='tray'?'캐릭터 열':selected.source==='blue'?'Blue ground':'Orange ground'}</small></div></div><label>Brain <select data-inspector="brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select></label><label>Body <select data-inspector="body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label><small>변경 후에도 같은 로봇 카드로 유지됩니다.</small>`;
+    inspector.innerHTML=`<div class="inspector-robot"><span class="lab-robot-avatar brain-${brain}"><span></span></span><div><b>${labels[brain]}</b><small>${selected.source==='tray'?'대기 로봇':selected.source==='blue'?'전장 · Blue':'전장 · Orange'}</small></div></div><label>Brain <select data-inspector="brain"><option value="striker">Striker</option><option value="sweeper">Sweeper</option><option value="scout">Scout</option><option value="dribbler">Dribbler</option><option value="cannon">Cannon</option><option value="bulwark">Anchor</option></select></label><label>Body <select data-inspector="body"><option value="standard">Standard</option><option value="light">Light Frame</option><option value="heavy">Heavy Frame</option><option value="wide">Wide Bumper</option><option value="kick-plate">Kick Plate</option></select></label><small>변경 후에도 같은 로봇 카드로 유지됩니다.</small>`;
     const brainSelect=inspector.querySelector<HTMLSelectElement>('[data-inspector="brain"]')!; const bodySelect=inspector.querySelector<HTMLSelectElement>('[data-inspector="body"]')!; brainSelect.value=brain; bodySelect.value=body;
     brainSelect.onchange=()=>{list[selected.index]=brainSelect.value as Brain;this.invalidateRepeat();this.syncRosterCards();this.syncVisual();};
     bodySelect.onchange=()=>{const selector=selected.source==='orange'?'opponent-body':'body';const main=this.root.querySelector<HTMLSelectElement>(`[data-lab="${selector}"]`)!;main.value=bodySelect.value;this.invalidateRepeat();this.syncRosterCards();this.syncVisual();};
   }
-  private syncVisual(){this.onConfig?.({blueBrain:this.value<Brain>('brain'),blueBody:this.value<BodyPreset>('body'),orangeBrain:this.value<Brain>('opponent-brain'),orangeBody:this.value<BodyPreset>('opponent-body'),opponentEnabled:this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked,scenario:this.value('scenario'),blueRoster:[...this.blueRoster],orangeRoster:[...this.orangeRoster]});}
+  private syncVisual(){this.onConfig?.({blueBrain:this.value<Brain>('brain'),blueBody:this.value<BodyPreset>('body'),orangeBrain:this.value<Brain>('opponent-brain'),orangeBody:this.value<BodyPreset>('opponent-body'),opponentEnabled:this.root.querySelector<HTMLInputElement>('[data-lab="opponent-enabled"]')!.checked,scenario:this.value('scenario'),blueRoster:[...this.blueRoster],orangeRoster:[...this.orangeRoster],bluePlacement:[...this.bluePlacement],orangePlacement:[...this.orangePlacement]});}
+  public handleFieldRobotMove(team:'blue'|'orange',index:number,x:number|null,y:number|null){
+    const roster=team==='blue'?this.blueRoster:this.orangeRoster; const placements=team==='blue'?this.bluePlacement:this.orangePlacement;
+    if(x===null||y===null){const brain=roster.splice(index,1)[0];placements.splice(index,1);if(brain)this.availableRoster.push(brain);this.selectedCard={source:'tray',index:Math.max(0,this.availableRoster.length-1)};this.syncRosterCards();this.syncVisual();return;}
+    if(placements[index])placements[index]={x,y};else placements[index]={x,y};this.syncVisual();
+  }
   private run():ScenarioRun{
     this.syncVisual(); this.onStart?.(); const spec=this.makeScenario(); const arena=new SimulationTestArena(spec); this.configureBody(arena); arena.run(); this.last=arena.result(); this.record(this.last); this.render(this.last,undefined); return this.last;
   }
