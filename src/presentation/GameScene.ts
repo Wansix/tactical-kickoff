@@ -50,7 +50,7 @@ export class GameScene extends Phaser.Scene {
     this.onReady = undefined;
   }
   update(_time:number,delta:number):void { this.sim.tick(delta/1000*this.speed); this.render(); if(this.sim.state.status==='finished'&&this.onFinish)this.onFinish(); }
-  start():void { this.sim.start(); }
+  start():void { this.selectedLabRobotId=undefined; this.render(); this.sim.start(); }
   togglePause():void { this.sim.setPaused(this.sim.state.status!=='paused'); }
   setMatchSpeed(speed:number):void { this.speed=speed; }
   setSeedMode(enabled:boolean,seed=2025):void { this.seedEnabled=enabled; this.seedValue=seed; this.reset(); }
