@@ -239,9 +239,8 @@ export class MatchSimulation {
           const ownAreaNearBall=robot.team==='blue'?b.y>=this.field.height-GOAL_AREA.depth:b.y<=GOAL_AREA.depth;
           const stepOut=ownAreaNearBall?Math.min(GOALKEEPER_STEP_OUT,Math.max(0,Math.abs(b.y-robot.homeY))):0;
           const ballInOwnHalf=robot.team==='blue'?b.y>=centerY:b.y<=centerY;
-          const ballTowardOwnGoal=robot.team==='blue'?b.vy>35:b.vy< -35;
           targetX=this.clamp(centerX+(b.x-centerX)*0.45,GOAL_AREA.left+ROBOT_RADIUS,GOAL_AREA.right-ROBOT_RADIUS);
-          targetY=ballInOwnHalf&&ballTowardOwnGoal?robot.homeY:robot.homeY+(robot.team==='blue'?-stepOut:stepOut);
+          targetY=ballInOwnHalf?robot.homeY:robot.homeY+(robot.team==='blue'?-stepOut:stepOut);
           robot.target='GOAL_LINE';action='COVER';break;
         }
         case 'striker': {

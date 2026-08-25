@@ -1,7 +1,7 @@
 import { SimulationTestArena, detectAnomalies, replayEquivalent, type ScenarioSpec, type ScenarioRun } from '../simulation/SimulationQA';
 import type { RobotArchetype } from '../simulation/MatchSimulation';
 
-export const APP_VERSION='0.17';
+export const APP_VERSION='0.19';
 
 export type BodyPreset='standard'|'light'|'heavy'|'wide'|'kick-plate';
 type Brain=RobotArchetype;
