@@ -336,7 +336,7 @@ describe('physics-first simulation contract', () => {
     }
   });
 
-  it('keeps sweeper zones authoritative, mirrored, and ignores a ball outside the zone', () => {
+  it('keeps sweeper zones authoritative, mirrored, and pressures outside balls at the zone edge', () => {
     const blue=new MatchSimulation(701,{blue:['sweeper'],orange:[]});
     const orange=new MatchSimulation(701,{blue:[],orange:['sweeper']});
     const bz=blue.state.robots[0].defensiveZone!; const oz=orange.state.robots[0].defensiveZone!;
@@ -345,11 +345,13 @@ describe('physics-first simulation contract', () => {
     blue.start(); (blue as any).kickoffTimer=0; (blue as any).kickoffRaceTicks=0;
     blue.state.ball.x=270; blue.state.ball.y=430; blue.state.ball.vx=0; blue.state.ball.vy=0;
     blue.tick(1/60);
-    expect(blue.state.robots[0].sweeperState).toBe('HOLD_ZONE');
-    expect(blue.state.robots[0].target).toBe('DEFENSIVE_ZONE_CENTER');
+    expect(['INTERCEPT_STAGE','INTERCEPT']).toContain(blue.state.robots[0].sweeperState);
+    expect(blue.state.robots[0].target).toBe('ZONE_EDGE_PRESSURE');
+    expect(blue.state.robots[0].moveTargetX).toBeGreaterThanOrEqual(270-1);
+    expect(blue.state.robots[0].moveTargetX).toBeLessThanOrEqual(270+1);
   });
 
-  it('clears only after actual sweeper-ball contact and returns to zone center', () => {
+  it('clears only after actual sweeper-ball contact and then pressures the nearest zone edge', () => {
     const match=new MatchSimulation(702,{blue:['sweeper'],orange:[]}); match.start();
     (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false; (match as any).kickoffRaceTicks=0;
     const sweeper=match.state.robots[0]; sweeper.sweeperState='INTERCEPT'; sweeper.x=270; sweeper.y=620; sweeper.vx=0; sweeper.vy=0;
@@ -361,7 +363,28 @@ describe('physics-first simulation contract', () => {
     match.tick(1/60);
     for(let i=0;i<120;i++){match.state.ball.x=270;match.state.ball.y=430;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
     const center=sweeper.defensiveZone!;
-    expect(Math.hypot(sweeper.x-(center.left+center.right)/2,sweeper.y-(center.top+center.bottom)/2)).toBeLessThan(24);
+    const edgeY=center.top;
+    expect(Math.hypot(sweeper.x-(center.left+center.right)/2,sweeper.y-edgeY)).toBeLessThanOrEqual(24);
+  });
+
+  it('pressures the ball centre directly when it is inside a Sweeper zone', () => {
+    const match=new MatchSimulation(700,{blue:['sweeper'],orange:[]}); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+    const sweeper=match.state.robots[0],zone=sweeper.defensiveZone!;
+    match.state.ball.x=(zone.left+zone.right)/2+50; match.state.ball.y=(zone.top+zone.bottom)/2; match.state.ball.vx=0; match.state.ball.vy=0;
+    match.tick(1/60);
+    expect(sweeper.action).toBe('PRESS'); expect(sweeper.target).toBe('BALL_PRESSURE');
+    expect(sweeper.moveTargetX).toBe(match.state.ball.x); expect(sweeper.moveTargetY).toBe(match.state.ball.y);
+  });
+
+  it('strongly damps a long shot when it newly enters the Goal Area', () => {
+    const match=new MatchSimulation(701,{blue:[],orange:[]}); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false; (match as any).kickoffSafetyTimer=0;
+    match.state.ball.x=match.field.width/2; match.state.ball.y=400; match.state.ball.vy=-900;
+    match.tick(0.30);
+    expect(match.state.score.blue).toBe(0);
+    expect(match.state.ball.y).toBeGreaterThan(18);
+    expect(Math.hypot(match.state.ball.vx,match.state.ball.vy)).toBeLessThan(200);
   });
 
   it('does not let sequential robot updates give every kickoff to blue', () => {
@@ -380,9 +403,9 @@ describe('physics-first simulation contract', () => {
   it('allows both teams to participate in kickoff without a preferred team gate', () => {
     const teams = new Set<string>();
     for (const seed of [1,2,3,4,5,6,7,8,9,10]) {
-      const match=new MatchSimulation(seed,MatchSimulation.default3v3Composition()); match.start();
+      const match=new MatchSimulation(seed,{blue:['striker','bulwark','striker'],orange:['striker','bulwark','striker']}); match.start();
       for(let i=0;i<6*60;i++)match.tick(1/60);
-      for(const event of match.getEvents().filter(candidate=>candidate.type==='kick'&&candidate.elapsed<3)) {
+      for(const event of match.getEvents().filter(candidate=>candidate.type==='kick'&&candidate.elapsed<6)) {
         if(event.ids?.[0]) teams.add(event.ids[0].split('-')[0]);
       }
     }

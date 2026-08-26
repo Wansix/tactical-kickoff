@@ -1,7 +1,7 @@
 import { MatchSimulation, type SimulationEvent, type TelemetryFrame, type Team } from '../src/simulation/MatchSimulation';
 import { detectAnomalies, type ScenarioRun } from '../src/simulation/SimulationQA';
 
-const SEEDS=Array.from({length:Number(process.env.QA_SEEDS??50)},(_,i)=>i+1);
+const SEEDS=Array.from({length:Number(process.env.QA_SEEDS??100)},(_,i)=>i+1);
 const SECONDS=Number(process.env.QA_SECONDS??60);
 
 type MatchReport={seed:number;goals:number;blueGoals:number;orangeGoals:number;kicks:number;firstKickTeam:'blue'|'orange'|'none';firstGoalTick:number|null;earlyGoals:number;blueKicks:number;orangeKicks:number;blueWrongDirectionKicks:number;orangeWrongDirectionKicks:number;goalPrecedingKickTeams:string[];wallBounces:number;signature:string;maxCollisionRun:number;maxDirectionReversalRun:number;maxCornerLowSpeedRun:number;anomalyCount:number;anomalyKinds:Record<string,number>;severeAnomalies:number;robotRanges:Record<string,{x:number;y:number}>};
@@ -67,10 +67,9 @@ function run(seed:number):MatchReport{
 }
 
 function defensiveScenario(team:Team){
-  const match=new MatchSimulation(77,{blue:['bulwark','bulwark','goalkeeper'],orange:['bulwark','bulwark','goalkeeper']}); match.start();
+  const match=new MatchSimulation(77,{blue:['sweeper','bulwark','goalkeeper'],orange:['sweeper','bulwark','goalkeeper']}); match.start();
   match.state.ball.x=270; match.state.ball.y=team==='blue'?640:220; match.state.ball.vy=team==='blue'?80:-80;
-  // 3v3 defensive formation starts both bulwarks on the goal-line lanes;
-  // observe the physical closing/contact path for three seconds, not only kickoff alignment.
+  // Sweeper owns the defensive zone; observe the physical closing/contact path for three seconds, not only kickoff alignment.
   for(let i=0;i<180;i++) match.tick(1/60);
   const contacts=match.getEvents().filter(e=>e.type==='robot-ball-collision'&&e.ids?.some(id=>id.startsWith(`${team}-`))).length;
   const concededGoals=match.getEvents().filter(e=>e.type==='goal'&&e.decision?.scoringTeam!==team).length;
