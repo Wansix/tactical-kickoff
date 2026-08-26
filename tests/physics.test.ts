@@ -336,6 +336,34 @@ describe('physics-first simulation contract', () => {
     }
   });
 
+  it('keeps sweeper zones authoritative, mirrored, and ignores a ball outside the zone', () => {
+    const blue=new MatchSimulation(701,{blue:['sweeper'],orange:[]});
+    const orange=new MatchSimulation(701,{blue:[],orange:['sweeper']});
+    const bz=blue.state.robots[0].defensiveZone!; const oz=orange.state.robots[0].defensiveZone!;
+    expect(bz.right-bz.left).toBe(190); expect(bz.bottom-bz.top).toBe(190);
+    expect(bz.top).toBe(oz.top+310); expect(bz.bottom).toBe(oz.bottom+310);
+    blue.start(); (blue as any).kickoffTimer=0; (blue as any).kickoffRaceTicks=0;
+    blue.state.ball.x=270; blue.state.ball.y=430; blue.state.ball.vx=0; blue.state.ball.vy=0;
+    blue.tick(1/60);
+    expect(blue.state.robots[0].sweeperState).toBe('HOLD_ZONE');
+    expect(blue.state.robots[0].target).toBe('DEFENSIVE_ZONE_CENTER');
+  });
+
+  it('clears only after actual sweeper-ball contact and returns to zone center', () => {
+    const match=new MatchSimulation(702,{blue:['sweeper'],orange:[]}); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffFirstKickPending=false; (match as any).kickoffRaceTicks=0;
+    const sweeper=match.state.robots[0]; sweeper.sweeperState='INTERCEPT'; sweeper.x=270; sweeper.y=620; sweeper.vx=0; sweeper.vy=0;
+    match.state.ball.x=270; match.state.ball.y=590; match.state.ball.vx=0; match.state.ball.vy=80;
+    (match as any).resolveRobotBallCollisions();
+    expect(match.getEvents().some(event=>event.type==='robot-ball-collision'&&event.ids?.includes(sweeper.id))).toBe(true);
+    expect(match.getEvents().some(event=>event.type==='kick'&&event.ids?.includes(sweeper.id))).toBe(true);
+    expect(sweeper.sweeperState).toBe('CLEAR');
+    match.tick(1/60);
+    for(let i=0;i<120;i++){match.state.ball.x=270;match.state.ball.y=430;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
+    const center=sweeper.defensiveZone!;
+    expect(Math.hypot(sweeper.x-(center.left+center.right)/2,sweeper.y-(center.top+center.bottom)/2)).toBeLessThan(24);
+  });
+
   it('does not let sequential robot updates give every kickoff to blue', () => {
     let blue=0,orange=0;
     for(let seed=1;seed<=20;seed++){
@@ -414,5 +442,24 @@ describe('physics-first simulation contract', () => {
     match.state.ball.vy = -10;
     match.tick(1/60);
     expect(match.state.score.blue).toBe(1);
+  });
+
+  it('locks Sweeper zone mutation after the match starts and serializes it in telemetry', () => {
+    const match=new MatchSimulation(8080,{blue:['sweeper'],orange:[]});
+    const sweeper=match.state.robots[0];
+    const configured=match.setSweeperZone(sweeper.id,{left:140,top:420,right:390,bottom:700});
+    match.start();
+    expect(()=>match.setSweeperZone(sweeper.id,{left:100,top:300,right:400,bottom:600})).toThrow('locked');
+    match.tick(1/60);
+    expect(match.getTelemetry()[0].robots[0].defensiveZone).toEqual(configured);
+  });
+
+  it('keeps a Sweeper actor and target within a custom zone during an in-zone threat', () => {
+    const match=new MatchSimulation(8081,{blue:['sweeper'],orange:[]});
+    const sweeper=match.state.robots[0];
+    const zone=match.setSweeperZone(sweeper.id,{left:180,top:500,right:360,bottom:650});
+    match.start(); (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
+    match.state.ball.x=270; match.state.ball.y=590; match.state.ball.vx=0; match.state.ball.vy=30;
+    for(let i=0;i<120;i++){match.tick(1/60);expect(sweeper.x).toBeGreaterThanOrEqual(zone.left+sweeper.radius-1e-6);expect(sweeper.x).toBeLessThanOrEqual(zone.right-sweeper.radius+1e-6);expect(sweeper.y).toBeGreaterThanOrEqual(zone.top+sweeper.radius-1e-6);expect(sweeper.y).toBeLessThanOrEqual(zone.bottom-sweeper.radius+1e-6);expect(sweeper.moveTargetX).toBeGreaterThanOrEqual(zone.left+sweeper.radius-1e-6);expect(sweeper.moveTargetX).toBeLessThanOrEqual(zone.right-sweeper.radius+1e-6);expect(sweeper.moveTargetY).toBeGreaterThanOrEqual(zone.top+sweeper.radius-1e-6);expect(sweeper.moveTargetY).toBeLessThanOrEqual(zone.bottom-sweeper.radius+1e-6);}
   });
 });

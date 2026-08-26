@@ -47,7 +47,7 @@ function rangeReport(frames:TelemetryFrame[]):Record<string,{x:number;y:number}>
 function run(seed:number):MatchReport{
   const match=new MatchSimulation(seed,MatchSimulation.default3v3Composition()); match.start();
   for(let i=0;i<SECONDS*60;i++) match.tick(1/60);
-  const frames=match.getTelemetry(); const events=frames.flatMap(f=>f.events);
+  const frames=match.getTelemetry(); const events=match.getEvents();
   const goals=events.filter(e=>e.type==='goal');
   const blueGoals=goals.filter(e=>e.decision?.scoringTeam==='blue').length,orangeGoals=goals.filter(e=>e.decision?.scoringTeam==='orange').length;
   const robotRangeSignature=Object.entries(rangeReport(frames)).sort(([a],[b])=>a.localeCompare(b)).map(([id,range])=>`${id}:${Math.round(range.x/20)}:${Math.round(range.y/20)}`).join('|');
@@ -90,7 +90,7 @@ const blueWrongDirectionKicks=reports.reduce((n,r)=>n+r.blueWrongDirectionKicks,
 const goalPrecedingKickTeams=reports.flatMap(r=>r.goalPrecedingKickTeams);
 const defensiveBlue=defensiveScenario('blue'),defensiveOrange=defensiveScenario('orange');
 const maxCollisionRun=Math.max(...reports.map(r=>r.maxCollisionRun)); const maxDirectionReversalRun=Math.max(...reports.map(r=>r.maxDirectionReversalRun));
-const rangeFailures=reports.flatMap(r=>Object.entries(r.robotRanges).filter(([id,range])=>!id.endsWith('-2')&&Math.max(range.x,range.y)<40).map(([id])=>`${r.seed}:${id}`));
+const rangeFailures=reports.flatMap(r=>Object.entries(r.robotRanges).filter(([id])=>{const archetype=id.endsWith('-2')?'goalkeeper':id.endsWith('-1')?'sweeper':'striker';return archetype!=='goalkeeper'&&archetype!=='sweeper';}).filter(([,range])=>Math.max(range.x,range.y)<40).map(([id])=>`${r.seed}:${id}`));
 const failures:string[]=[];
 if(signatures.size<20) failures.push(`unique signatures ${signatures.size}<20`);
 if(totalGoals<10) failures.push(`total goals ${totalGoals}<10`);

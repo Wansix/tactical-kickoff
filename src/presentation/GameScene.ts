@@ -14,6 +14,7 @@ export class GameScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private kickDebugGraphics!: Phaser.GameObjects.Graphics;
   private kickRangeGraphics!: Phaser.GameObjects.Graphics;
+  private defensiveZoneGraphics!: Phaser.GameObjects.Graphics;
   private debugEnabled=false;
   private speed = 1;
   private labMode=false;
@@ -26,6 +27,7 @@ export class GameScene extends Phaser.Scene {
   private onLabRobotSelect?: (team:Team,index:number)=>void;
   private selectedLabRobotId?:string;
   private pointerDrag?:{robot:Robot;container:Phaser.GameObjects.Container};
+  private zoneDrag?:{robot:Robot;resize:boolean;offsetX:number;offsetY:number};
   private field = { x: 20, y: 110, w: 540, h: 860 };
   private onReady: ((scene: GameScene) => void) | undefined;
   private onFinish: (() => void) | undefined;
@@ -34,6 +36,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#08111d');
     this.kickDebugGraphics=this.add.graphics().setDepth(9);
     this.kickRangeGraphics=this.add.graphics().setDepth(8);
+    this.defensiveZoneGraphics=this.add.graphics().setDepth(4);
     this.sim.setKickDebugLine(this.debugEnabled);
     const g=this.add.graphics(); g.fillStyle(0x102b37);g.fillRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x3c7180,1);g.strokeRoundedRect(this.field.x,this.field.y,this.field.w,this.field.h,18); g.lineStyle(2,0x5b98a1,.55);g.strokeRect(this.field.x,this.field.y+this.field.h/2-1,this.field.w,2);g.strokeCircle(this.field.x+this.field.w/2,this.field.y+this.field.h/2,78); const topBarY=this.field.y-GOAL_GEOMETRY.depth;const bottomBarY=this.field.y+this.field.h+GOAL_GEOMETRY.depth;g.beginPath();g.moveTo(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y);g.lineTo(this.field.x+GOAL_GEOMETRY.barLeft,topBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.barRight,topBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.postRight,this.field.y);g.strokePath();g.beginPath();g.moveTo(this.field.x+GOAL_GEOMETRY.postLeft,this.field.y+this.field.h);g.lineTo(this.field.x+GOAL_GEOMETRY.barLeft,bottomBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.barRight,bottomBarY);g.lineTo(this.field.x+GOAL_GEOMETRY.postRight,this.field.y+this.field.h);g.strokePath();
     // Goals use the owning team's color: orange owns the top goal, blue owns the bottom goal.
@@ -49,15 +52,19 @@ export class GameScene extends Phaser.Scene {
     for(const r of this.sim.state.robots) this.createRobot(r);
     this.input.on('pointerdown', (pointer:Phaser.Input.Pointer)=>{
       if(!this.labMode||this.sim.state.status!=='ready')return;
+      const selected=this.sim.state.robots.find(r=>r.id===this.selectedLabRobotId&&r.archetype==='sweeper');
+      if(selected?.defensiveZone){const z=selected.defensiveZone;const zx=this.field.x+z.right,zy=this.field.y+z.bottom;const px=pointer.worldX,py=pointer.worldY;const resize=Math.hypot(px-zx,py-zy)<24;const inside=px>=this.field.x+z.left&&px<=this.field.x+z.right&&py>=this.field.y+z.top&&py<=this.field.y+z.bottom;if(resize||inside){this.zoneDrag={robot:selected,resize,offsetX:px-(this.field.x+(z.left+z.right)/2),offsetY:py-(this.field.y+(z.top+z.bottom)/2)};return;}}
       const candidate=this.sim.state.robots.filter(r=>this.labVisibleIds.has(r.id)).sort((a,b)=>Math.hypot(pointer.worldX-(this.field.x+a.x),pointer.worldY-(this.field.y+a.y))-Math.hypot(pointer.worldX-(this.field.x+b.x),pointer.worldY-(this.field.y+b.y)))[0];
       if(candidate&&Math.hypot(pointer.worldX-(this.field.x+candidate.x),pointer.worldY-(this.field.y+candidate.y))<=42){this.selectedLabRobotId=candidate.id;this.onLabRobotSelect?.(candidate.team,Number(candidate.id.split('-')[1]));this.pointerDrag={robot:candidate,container:this.robotGraphics.get(candidate.id)!};this.render();}
     });
     this.input.on('pointermove', (pointer:Phaser.Input.Pointer)=>{
+      const zoneDrag=this.zoneDrag;if(zoneDrag&&this.sim.state.status==='ready'){const r=zoneDrag.robot;const z=r.defensiveZone!;const cx=zoneDrag.resize?((z.left+z.right)/2):pointer.worldX-this.field.x-zoneDrag.offsetX;const cy=zoneDrag.resize?((z.top+z.bottom)/2):pointer.worldY-this.field.y-zoneDrag.offsetY;const width=zoneDrag.resize?Math.max(140,Math.abs(pointer.worldX-(this.field.x+(z.left+z.right)/2))*2):z.right-z.left;const height=zoneDrag.resize?Math.max(140,Math.abs(pointer.worldY-(this.field.y+(z.top+z.bottom)/2))*2):z.bottom-z.top;this.sim.setSweeperZone(r.id,{left:cx-width/2,top:cy-height/2,right:cx+width/2,bottom:cy+height/2});this.render();return;}
       const active=this.pointerDrag;if(!active||this.sim.state.status!=='ready')return;
       const r=active.robot;const x=this.clamp(pointer.worldX,this.field.x+28,this.field.x+this.field.w-28);const y=this.clamp(pointer.worldY,this.field.y+28,this.field.y+this.field.h-28);
       active.container.setPosition(x,y);r.x=x-this.field.x;r.y=y-this.field.y;r.homeX=r.x;r.homeY=r.y;r.moveTargetX=r.x;r.moveTargetY=r.y;
     });
     this.input.on('pointerup', ()=>{
+      if(this.zoneDrag){this.zoneDrag=undefined;this.render();return;}
       const active=this.pointerDrag;if(!active)return;this.pointerDrag=undefined;
       const r=active.robot;this.onLabRobotMove?.(r.team,Number(r.id.split('-')[1]),r.x,r.y);this.render();
     });
@@ -174,5 +181,10 @@ export class GameScene extends Phaser.Scene {
       this.kickRangeGraphics.fillPath();
     }
   }
-  private render():void { const s=this.sim.state; this.renderKickRanges(s); this.kickDebugGraphics.clear(); if(this.debugEnabled){this.kickDebugGraphics.lineStyle(5,0xffe66d,1);for(const r of s.robots){if(r.archetype==='goalkeeper')continue;const length=72;this.kickDebugGraphics.beginPath();this.kickDebugGraphics.moveTo(this.field.x+r.x,this.field.y+r.y);this.kickDebugGraphics.lineTo(this.field.x+r.x+r.facingX*length,this.field.y+r.y+r.facingY*length);this.kickDebugGraphics.strokePath();}}this.scoreText.setText(`점수  ${s.score.blue} : ${s.score.orange}`);const remain=Math.ceil(90-s.elapsed);this.timeText.setText(`${Math.floor(remain/60).toString().padStart(2,'0')}:${(remain%60).toString().padStart(2,'0')}`);const status=s.goalResetTimer>0?`골인 · ${s.goalResetTimer.toFixed(1)}초`:s.status==='ready'?'준비 · 시작':s.status==='running'?`경기 중 · ${this.speed.toFixed(1)}배`:s.status==='paused'?'일시정지':'경기 종료';this.statusText.setText(status);this.ball.setPosition(this.field.x+s.ball.x,this.field.y+s.ball.y);for(const r of s.robots){const c=this.robotGraphics.get(r.id);if(c){c.setVisible(!this.labMode||this.labVisibleIds.has(r.id));c.setPosition(this.field.x+r.x,this.field.y+r.y);c.setScale(1);const visual=c.list[0] as Phaser.GameObjects.Container;visual.setScale(this.selectedLabRobotId===r.id?1.12:1);visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);const body=visual.list[1] as Phaser.GameObjects.Shape;const nose=visual.list[2] as Phaser.GameObjects.Graphics;const flashing=r.lastKickAt!==undefined&&s.elapsed-r.lastKickAt<0.12;body.setFillStyle(flashing?0xffffff:r.team==='blue'?0x48d7e1:0xff9f43);nose.setAlpha(flashing?1:0.92);const label=c.list[1] as Phaser.GameObjects.Text;label.setText(`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`);const ring=c.getData('selectionRing') as Phaser.GameObjects.Graphics;ring.setVisible(this.selectedLabRobotId===r.id);}}}
+  private renderDefensiveZones(s:MatchState):void {
+    this.defensiveZoneGraphics.clear();
+    if(!this.labMode)return;
+    for(const r of s.robots){if(r.archetype!=='sweeper'||!this.labVisibleIds.has(r.id)||!r.defensiveZone)continue;const z=r.defensiveZone;const color=r.team==='blue'?0x48d7e1:0xff9f43;const selected=this.selectedLabRobotId===r.id;this.defensiveZoneGraphics.fillStyle(color,selected?.22:.10);this.defensiveZoneGraphics.fillRect(this.field.x+z.left,this.field.y+z.top,z.right-z.left,z.bottom-z.top);this.defensiveZoneGraphics.lineStyle(selected?3:1,color,selected?.9:.45);this.defensiveZoneGraphics.strokeRect(this.field.x+z.left,this.field.y+z.top,z.right-z.left,z.bottom-z.top);if(selected&&s.status==='ready'){this.defensiveZoneGraphics.fillStyle(0xffffff,.9);this.defensiveZoneGraphics.fillCircle(this.field.x+(z.left+z.right)/2,this.field.y+(z.top+z.bottom)/2,5);this.defensiveZoneGraphics.fillStyle(color,1);this.defensiveZoneGraphics.fillRoundedRect(this.field.x+z.right-8,this.field.y+z.bottom-8,16,16,3);}}
+  }
+  private render():void { const s=this.sim.state; this.renderKickRanges(s); this.renderDefensiveZones(s); this.kickDebugGraphics.clear(); if(this.debugEnabled){this.kickDebugGraphics.lineStyle(5,0xffe66d,1);for(const r of s.robots){if(r.archetype==='goalkeeper')continue;const length=72;this.kickDebugGraphics.beginPath();this.kickDebugGraphics.moveTo(this.field.x+r.x,this.field.y+r.y);this.kickDebugGraphics.lineTo(this.field.x+r.x+r.facingX*length,this.field.y+r.y+r.facingY*length);this.kickDebugGraphics.strokePath();}}this.scoreText.setText(`점수  ${s.score.blue} : ${s.score.orange}`);const remain=Math.ceil(90-s.elapsed);this.timeText.setText(`${Math.floor(remain/60).toString().padStart(2,'0')}:${(remain%60).toString().padStart(2,'0')}`);const status=s.goalResetTimer>0?`골인 · ${s.goalResetTimer.toFixed(1)}초`:s.status==='ready'?'준비 · 시작':s.status==='running'?`경기 중 · ${this.speed.toFixed(1)}배`:s.status==='paused'?'일시정지':'경기 종료';this.statusText.setText(status);this.ball.setPosition(this.field.x+s.ball.x,this.field.y+s.ball.y);for(const r of s.robots){const c=this.robotGraphics.get(r.id);if(c){c.setVisible(!this.labMode||this.labVisibleIds.has(r.id));c.setPosition(this.field.x+r.x,this.field.y+r.y);c.setScale(1);const visual=c.list[0] as Phaser.GameObjects.Container;visual.setScale(this.selectedLabRobotId===r.id?1.12:1);visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);const body=visual.list[1] as Phaser.GameObjects.Shape;const nose=visual.list[2] as Phaser.GameObjects.Graphics;const flashing=r.lastKickAt!==undefined&&s.elapsed-r.lastKickAt<0.12;body.setFillStyle(flashing?0xffffff:r.team==='blue'?0x48d7e1:0xff9f43);nose.setAlpha(flashing?1:0.92);const label=c.list[1] as Phaser.GameObjects.Text;label.setText(`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`);const ring=c.getData('selectionRing') as Phaser.GameObjects.Graphics;ring.setVisible(this.selectedLabRobotId===r.id);}}}
 }

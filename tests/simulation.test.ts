@@ -212,14 +212,14 @@ describe('MatchSimulation', () => {
     expect(sweeper.facingX*dx+sweeper.facingY*dy).toBeGreaterThan(len*0.99);
   });
 
-  it('stages a Sweeper laterally before crossing to the own-goal side of the ball', () => {
+  it('does not intercept an orange Sweeper for a ball outside its configured zone', () => {
     const match = new MatchSimulation(2027, {blue:['bulwark','bulwark'], orange:['sweeper','bulwark']});
     match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
     const sweeper = match.state.robots.find(robot => robot.id === 'orange-0')!;
-    for (let tick = 0; tick < 120; tick++) { match.state.ball.x=230; match.state.ball.y=200; match.state.ball.vy=0; match.tick(1/60); }
-    expect(sweeper.sweeperState).toBe('INTERCEPT');
-    expect(sweeper.y).toBeLessThanOrEqual(match.state.ball.y);
-    expect(sweeper.moveTargetY).toBeLessThanOrEqual(match.state.ball.y);
+    for (let tick = 0; tick < 120; tick++) { match.state.ball.x=230; match.state.ball.y=100; match.state.ball.vy=0; match.tick(1/60); }
+    expect(sweeper.sweeperState).toBe('HOLD_ZONE');
+    expect(sweeper.target).toBe('DEFENSIVE_ZONE_CENTER');
   });
 
   it('uses distinct role-specific kick range profiles and a closer symmetric Sweeper post', () => {
@@ -243,39 +243,32 @@ describe('MatchSimulation', () => {
     expect(Math.abs(sweeper.moveTargetX-match.field.width/2)).toBeLessThanOrEqual(55);
   });
 
-  it('lets a Sweeper roam toward a mid-own-half ball while retaining a goal-area block target near danger', () => {
+  it('keeps a Sweeper inside its configured zone and ignores a ball outside it', () => {
     const match=new MatchSimulation(5154,{blue:['sweeper','striker'],orange:['striker','striker']});
     match.start(); (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
     const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
-    const homeDistance=Math.hypot(sweeper.x-sweeper.homeX,sweeper.y-sweeper.homeY);
+    const zone=sweeper.defensiveZone!;
     for(let tick=0;tick<120;tick++){match.state.ball.x=120;match.state.ball.y=500;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
-    expect(Math.hypot(sweeper.x-sweeper.homeX,sweeper.y-sweeper.homeY)).toBeGreaterThan(homeDistance+80);
-    expect(sweeper.y).toBeGreaterThan(match.field.height/2-SWEEPER_FORWARD_LIMIT);
-    expect(sweeper.target).toBe('GOAL_BLOCK');
-    match.state.ball.x=270;match.state.ball.y=730;match.state.ball.vy=140;
-    match.tick(1/60);
-    expect(sweeper.moveTargetY).toBeLessThanOrEqual(match.field.height-GOAL_AREA.depth);
+    expect(sweeper.target).toBe('DEFENSIVE_ZONE_CENTER');
+    expect(sweeper.sweeperState).toBe('HOLD_ZONE');
+    expect(sweeper.x).toBeGreaterThanOrEqual(zone.left-1); expect(sweeper.x).toBeLessThanOrEqual(zone.right+1);
+    expect(sweeper.y).toBeGreaterThanOrEqual(zone.top-1); expect(sweeper.y).toBeLessThanOrEqual(zone.bottom+1);
+    match.state.ball.x=270;match.state.ball.y=550;match.state.ball.vy=140;match.tick(1/60);
+    expect(['INTERCEPT_STAGE','INTERCEPT']).toContain(sweeper.sweeperState);
   });
 
-  it('moves an attacking Sweeper outside the Goal Area and returns after the threat clears', () => {
+  it('moves a Sweeper to its configured zone and returns after the zone threat clears', () => {
     for(const team of ['blue','orange'] as const){
       const match=new MatchSimulation(616,{blue:['sweeper','striker'],orange:['sweeper','striker']});
       match.start(); (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
       const sweeper=match.state.robots.find(robot=>robot.id===`${team}-0`)!;
-      const attackY=team==='blue'?-1:1; const opponentY=team==='blue'?300:560; const ownY=team==='blue'?700:160;
-      for(let tick=0;tick<120;tick++){match.state.ball.x=270;match.state.ball.y=opponentY;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
-      const attackFrames=match.getTelemetry().map(frame=>frame.robots.find(robot=>robot.id===sweeper.id)!).filter(Boolean);
-      const minOrMax=team==='blue'?Math.min(...attackFrames.map(frame=>frame.y)):Math.max(...attackFrames.map(frame=>frame.y));
-      if(team==='blue')expect(minOrMax).toBeLessThanOrEqual(660);
-      else {expect(minOrMax).toBeGreaterThanOrEqual(200);expect(minOrMax).toBeLessThanOrEqual(610);}
-      expect(attackFrames.some(frame=>frame.target==='ATTACK_SUPPORT')).toBe(true);
-      for(let tick=0;tick<120;tick++){match.state.ball.x=270;match.state.ball.y=ownY;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
-      const safeCenterY=team==='blue'?429:431;
-      const returnDistances:number[]=[];
-      for(let tick=0;tick<240;tick++){match.state.ball.x=270;match.state.ball.y=safeCenterY;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);returnDistances.push(Math.hypot(sweeper.x-sweeper.homeX,sweeper.y-sweeper.homeY));}
-      expect(Math.min(...returnDistances)).toBeLessThanOrEqual(24);
-      expect(['RETURN_TO_POST','HOLD_POST']).toContain(sweeper.sweeperState);
-      expect(sweeper.facingY*attackY).toBeGreaterThan(-1);
+      const zone=sweeper.defensiveZone!; const centerX=(zone.left+zone.right)/2,centerY=(zone.top+zone.bottom)/2;
+      const threatY=team==='blue'?zone.bottom-20:zone.top+20;
+      for(let tick=0;tick<120;tick++){match.state.ball.x=centerX;match.state.ball.y=threatY;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
+      expect(['INTERCEPT_STAGE','INTERCEPT','RETURN_TO_ZONE']).toContain(sweeper.sweeperState);
+      for(let tick=0;tick<240;tick++){match.state.ball.x=270;match.state.ball.y=430;match.state.ball.vx=0;match.state.ball.vy=0;match.tick(1/60);}
+      expect(Math.hypot(sweeper.x-centerX,sweeper.y-centerY)).toBeLessThanOrEqual(24);
+      expect(['RETURN_TO_ZONE','HOLD_ZONE']).toContain(sweeper.sweeperState);
     }
   });
 
@@ -292,29 +285,20 @@ describe('MatchSimulation', () => {
     }
   });
 
-  it('records Goal Area exit damping after a physical defensive clear', () => {
-    const match=new MatchSimulation(618,{blue:['sweeper','striker'],orange:['striker','striker']}); match.start();
+  it('does not let a Sweeper clear a ball outside its configured zone', () => {
+    const match=new MatchSimulation(618,{blue:['sweeper','striker'],orange:['striker','striker']});
     (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
-    const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!; sweeper.x=270; sweeper.y=730; match.state.ball.x=270; match.state.ball.y=700; match.state.ball.vx=0; match.state.ball.vy=0; sweeper.sweeperState='INTERCEPT';
+    const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!; match.setSweeperZone(sweeper.id,{left:170,top:450,right:370,bottom:650}); match.start(); sweeper.x=270; sweeper.y=700; sweeper.sweeperState='INTERCEPT';
+    match.state.ball.x=270; match.state.ball.y=690; match.state.ball.vx=0; match.state.ball.vy=0;
     for(let tick=0;tick<60;tick++)match.tick(1/60);
-    const damping=match.getEvents().find(event=>event.type==='goal-area-exit-damping');
-    expect(damping).toBeDefined(); expect(damping?.speedBefore).toBeGreaterThan(360); expect(damping?.speedAfter).toBeLessThanOrEqual(360); expect(damping?.boundary).toBe(680);
+    expect(match.getEvents().find(event=>event.type==='kick'&&event.ids?.includes(sweeper.id))).toBeUndefined();
   });
 
-  it('preserves pending Goal Area exit damping across checkpoint restore', () => {
-    const setup=(match:MatchSimulation)=>{
-      match.start(); (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
-      const sweeper=match.state.robots.find(robot=>robot.id==='blue-0')!;
-      sweeper.x=270; sweeper.y=730; match.state.ball.x=270; match.state.ball.y=700; match.state.ball.vx=0; match.state.ball.vy=0; sweeper.sweeperState='INTERCEPT';
-      match.tick(1/60);
-    };
-    const original=new MatchSimulation(619,{blue:['sweeper','striker'],orange:['striker','striker']}); setup(original);
-    expect((original.checkpoint() as any).sweeperClearNeedsExit).toBe(true);
+  it('preserves the configured Sweeper zone across checkpoint restore', () => {
+    const original=new MatchSimulation(619,{blue:['sweeper','striker'],orange:['striker','striker']});
+    const before=original.state.robots.find(robot=>robot.id==='blue-0')!.defensiveZone!;
     const checkpoint=original.checkpoint(); const restored=new MatchSimulation(619,{blue:['sweeper','striker'],orange:['striker','striker']}); restored.restoreCheckpoint(checkpoint);
-    original.tick(1/60); restored.tick(1/60);
-    const originalDamping=original.getEvents().filter(event=>event.type==='goal-area-exit-damping');
-    const restoredDamping=restored.getEvents().filter(event=>event.type==='goal-area-exit-damping');
-    expect(restoredDamping).toEqual(originalDamping);
+    expect(restored.state.robots.find(robot=>robot.id==='blue-0')!.defensiveZone).toEqual(before);
     expect(restored.snapshot()).toEqual(original.snapshot());
   });
 
@@ -332,12 +316,13 @@ describe('MatchSimulation', () => {
 
   it('applies a Sweeper clear only after same-tick physical contact and records return tick', () => {
     const match = new MatchSimulation(4343, {blue:['sweeper','bulwark'], orange:['bulwark','bulwark']});
+    const sweeper = match.state.robots.find(robot => robot.id === 'blue-0')!;
+    match.setSweeperZone(sweeper.id,{left:170,top:500,right:370,bottom:680});
     match.start();
     (match as any).kickoffTimer = 0; (match as any).kickoffFirstKickPending = false;
-    const sweeper = match.state.robots.find(robot => robot.id === 'blue-0')!;
-    sweeper.x = 270; sweeper.y = 720; sweeper.facingX = 0; sweeper.facingY = -1;
+    sweeper.x = 270; sweeper.y = 620; sweeper.facingX = 0; sweeper.facingY = -1;
     sweeper.sweeperState = 'INTERCEPT';
-    match.state.ball.x = 270; match.state.ball.y = 690; match.state.ball.vx = 0; match.state.ball.vy = 80;
+    match.state.ball.x = 270; match.state.ball.y = 590; match.state.ball.vx = 0; match.state.ball.vy = 80;
     match.tick(1/60);
     const clear = match.getEvents().find(event => event.type === 'kick' && event.ids?.includes(sweeper.id));
     expect(clear).toBeDefined();
@@ -345,10 +330,10 @@ describe('MatchSimulation', () => {
     expect(clear!.power).toBeGreaterThan(500);
     expect(sweeper.clearImpulse).toBeGreaterThan(0);
     for (let tick = 0; tick < 30; tick++) match.tick(1/60);
-    expect(Math.hypot(match.state.ball.vx,match.state.ball.vy)).toBeLessThanOrEqual(360);
-    expect(match.state.ball.y).toBeLessThan(match.field.height-GOAL_AREA.depth);
+    expect(Math.hypot(match.state.ball.vx,match.state.ball.vy)).toBeGreaterThan(360);
+    expect(match.state.ball.y).toBeLessThanOrEqual(match.field.height-GOAL_AREA.depth);
     for (let tick = 0; tick < 120; tick++) { match.state.ball.vx = 0; match.state.ball.vy = 0; match.tick(1/60); }
-    expect(match.getTelemetry().some(frame => frame.robots.find(robot => robot.id === sweeper.id)?.sweeperState === 'RETURN_TO_POST')).toBe(true);
+    expect(match.getTelemetry().some(frame => frame.robots.find(robot => robot.id === sweeper.id)?.sweeperState === 'RETURN_TO_ZONE')).toBe(true);
     expect(sweeper.returnTick).toBeGreaterThan(0);
   });
 
