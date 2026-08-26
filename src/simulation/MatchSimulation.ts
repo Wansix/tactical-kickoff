@@ -176,8 +176,8 @@ export class MatchSimulation {
     const normalized={left:Math.min(zone.left,zone.right),top:Math.min(zone.top,zone.bottom),right:Math.max(zone.left,zone.right),bottom:Math.max(zone.top,zone.bottom)};
     const requestedWidth=Math.max(SWEEPER_ZONE_SIZE,normalized.right-normalized.left),requestedHeight=Math.max(SWEEPER_ZONE_SIZE,normalized.bottom-normalized.top);
     const maxWidth=this.field.width-56;
-    const ownTop=robot.team==='orange'?GOAL_AREA.depth: this.field.height/2;
-    const ownBottom=robot.team==='orange'?this.field.height/2:this.field.height-GOAL_AREA.depth;
+    const ownTop=robot.team==='orange'?28:this.field.height/2;
+    const ownBottom=robot.team==='orange'?this.field.height/2:this.field.height-28;
     const maxHeight=Math.max(SWEEPER_ZONE_SIZE,ownBottom-ownTop);
     const width=Math.min(requestedWidth,maxWidth),height=Math.min(requestedHeight,maxHeight);
     const center={x:(normalized.left+normalized.right)/2,y:(normalized.top+normalized.bottom)/2};

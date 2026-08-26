@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MatchSimulation } from '../src/simulation/MatchSimulation';
+import { MatchSimulation, GOAL_AREA } from '../src/simulation/MatchSimulation';
 import { prepareStrikerKick } from './fixtures';
 
 describe('physics-first simulation contract', () => {
@@ -461,5 +461,15 @@ describe('physics-first simulation contract', () => {
     match.start(); (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0; (match as any).kickoffFirstKickPending=false;
     match.state.ball.x=270; match.state.ball.y=590; match.state.ball.vx=0; match.state.ball.vy=30;
     for(let i=0;i<120;i++){match.tick(1/60);expect(sweeper.x).toBeGreaterThanOrEqual(zone.left+sweeper.radius-1e-6);expect(sweeper.x).toBeLessThanOrEqual(zone.right-sweeper.radius+1e-6);expect(sweeper.y).toBeGreaterThanOrEqual(zone.top+sweeper.radius-1e-6);expect(sweeper.y).toBeLessThanOrEqual(zone.bottom-sweeper.radius+1e-6);expect(sweeper.moveTargetX).toBeGreaterThanOrEqual(zone.left+sweeper.radius-1e-6);expect(sweeper.moveTargetX).toBeLessThanOrEqual(zone.right-sweeper.radius+1e-6);expect(sweeper.moveTargetY).toBeGreaterThanOrEqual(zone.top+sweeper.radius-1e-6);expect(sweeper.moveTargetY).toBeLessThanOrEqual(zone.bottom-sweeper.radius+1e-6);}
+  });
+
+  it('allows independent Sweeper zones inside both Goal Areas', () => {
+    const blue=new MatchSimulation(9090,{blue:['sweeper'],orange:[]});
+    const orange=new MatchSimulation(9091,{blue:[],orange:['sweeper']});
+    const bz=blue.setSweeperZone('blue-0',{left:175,top:700,right:365,bottom:890});
+    const oz=orange.setSweeperZone('orange-0',{left:175,top:-40,right:365,bottom:150});
+    expect((bz.top+bz.bottom)/2).toBeGreaterThan(blue.field.height-GOAL_AREA.depth);
+    expect((oz.top+oz.bottom)/2).toBeLessThan(GOAL_AREA.depth);
+    expect(bz).not.toEqual(oz);
   });
 });
