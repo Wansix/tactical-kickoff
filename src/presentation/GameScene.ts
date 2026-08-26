@@ -109,9 +109,9 @@ export class GameScene extends Phaser.Scene {
       nose.beginPath(); nose.moveTo(0,-24); nose.lineTo(-10,-3); nose.lineTo(10,-3); nose.closePath(); nose.fillPath(); nose.strokePath();
       nose.lineStyle(1.5,0x182a36,1); nose.beginPath(); nose.moveTo(0,0); nose.lineTo(0,-38); nose.strokePath();
     }
-    const labelY=r.archetype==='goalkeeper'?(r.team==='blue'?24:-50):(r.team==='blue'?27:-42);
-    const label=this.add.text(0,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'11px',color:'#d8f0ec',align:'center',fixedWidth:96}).setOrigin(0.5,0);
-    const selectionRing=this.add.graphics(); selectionRing.setPosition(body.x,body.y); selectionRing.lineStyle(4,r.team==='blue'?0x9ffff7:0xffd27a,1); selectionRing.strokeCircle(0,0,29); selectionRing.setVisible(false);
+    const labelY=r.archetype==='goalkeeper'?(r.team==='blue'?25:-49):(r.team==='blue'?27:-42);
+    const label=this.add.text(0,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'11px',color:'#d8f0ec',align:'center'}).setOrigin(0.5,0);
+    const selectionRing=this.add.graphics(); selectionRing.setPosition(body.x,body.y); selectionRing.lineStyle(4,r.team==='blue'?0x9ffff7:0xffd27a,1); selectionRing.strokeCircle(0,0,r.archetype==='goalkeeper'?22:29); selectionRing.setVisible(false);
     const visual=this.add.container(0,0,[accent,body,nose,selectionRing]);
     visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);
     const c=this.add.container(this.field.x+r.x,this.field.y+r.y,[visual,label]);
