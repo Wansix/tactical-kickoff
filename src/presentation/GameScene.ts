@@ -25,6 +25,7 @@ export class GameScene extends Phaser.Scene {
   private onLabRobotMove?: (team:Team,index:number,x:number|null,y:number|null)=>void;
   private onLabRobotSelect?: (team:Team,index:number)=>void;
   private selectedLabRobotId?:string;
+  private pointerDrag?:{robot:Robot;container:Phaser.GameObjects.Container};
   private field = { x: 20, y: 110, w: 540, h: 860 };
   private onReady: ((scene: GameScene) => void) | undefined;
   private onFinish: (() => void) | undefined;
@@ -49,7 +50,16 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer:Phaser.Input.Pointer)=>{
       if(!this.labMode||this.sim.state.status!=='ready')return;
       const candidate=this.sim.state.robots.filter(r=>this.labVisibleIds.has(r.id)).sort((a,b)=>Math.hypot(pointer.worldX-(this.field.x+a.x),pointer.worldY-(this.field.y+a.y))-Math.hypot(pointer.worldX-(this.field.x+b.x),pointer.worldY-(this.field.y+b.y)))[0];
-      if(candidate&&Math.hypot(pointer.worldX-(this.field.x+candidate.x),pointer.worldY-(this.field.y+candidate.y))<=42){this.selectedLabRobotId=candidate.id;this.onLabRobotSelect?.(candidate.team,Number(candidate.id.split('-')[1]));this.render();}
+      if(candidate&&Math.hypot(pointer.worldX-(this.field.x+candidate.x),pointer.worldY-(this.field.y+candidate.y))<=42){this.selectedLabRobotId=candidate.id;this.onLabRobotSelect?.(candidate.team,Number(candidate.id.split('-')[1]));this.pointerDrag={robot:candidate,container:this.robotGraphics.get(candidate.id)!};this.render();}
+    });
+    this.input.on('pointermove', (pointer:Phaser.Input.Pointer)=>{
+      const active=this.pointerDrag;if(!active||this.sim.state.status!=='ready')return;
+      const r=active.robot;const x=this.clamp(pointer.worldX,this.field.x+28,this.field.x+this.field.w-28);const y=this.clamp(pointer.worldY,this.field.y+28,this.field.y+this.field.h-28);
+      active.container.setPosition(x,y);r.x=x-this.field.x;r.y=y-this.field.y;r.homeX=r.x;r.homeY=r.y;r.moveTargetX=r.x;r.moveTargetY=r.y;
+    });
+    this.input.on('pointerup', ()=>{
+      const active=this.pointerDrag;if(!active)return;this.pointerDrag=undefined;
+      const r=active.robot;this.onLabRobotMove?.(r.team,Number(r.id.split('-')[1]),r.x,r.y);this.render();
     });
     this.onReady?.(this);
     this.onReady = undefined;
@@ -118,7 +128,7 @@ export class GameScene extends Phaser.Scene {
     const c=this.add.container(this.field.x+r.x,this.field.y+r.y,[visual,label]);
     c.setSize(54,54).setInteractive(new Phaser.Geom.Circle(0,0,32),Phaser.Geom.Circle.Contains);
     c.setData('selectionRing',selectionRing);
-    this.input.setDraggable(c);
+
     const selectRobot=()=>{if(!this.labMode||this.sim.state.status!=='ready')return;this.selectedLabRobotId=r.id;this.onLabRobotSelect?.(r.team,Number(r.id.split('-')[1]));this.render();};
     c.on('pointerdown',selectRobot);
     c.on('pointerup',selectRobot);
