@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { MatchSimulation, GOAL_GEOMETRY, GOAL_AREA, KICK_RANGE_PROFILES, type MatchState, type Robot, type Team, type RobotArchetype, type StartSlot, type TeamComposition } from '../simulation/MatchSimulation';
+import { MatchSimulation, GOAL_GEOMETRY, GOAL_AREA, KICK_RANGE_PROFILES, type MatchState, type Robot, type Team, type RobotArchetype, type StartSlot, type TeamComposition, type DefensiveZone } from '../simulation/MatchSimulation';
 import { robotDebug } from '../simulation/SimulationQA';
 
 export class GameScene extends Phaser.Scene {
@@ -26,6 +26,7 @@ export class GameScene extends Phaser.Scene {
   private onLabRobotMove?: (team:Team,index:number,x:number|null,y:number|null)=>void;
   private onLabRobotSelect?: (team:Team,index:number)=>void;
   private selectedLabRobotId?:string;
+  private labZoneOverrides=new Map<string,DefensiveZone>();
   private pointerDrag?:{robot:Robot;container:Phaser.GameObjects.Container};
   private zoneDrag?:{robot:Robot;resize:boolean;offsetX:number;offsetY:number};
   private field = { x: 20, y: 110, w: 540, h: 860 };
@@ -58,7 +59,7 @@ export class GameScene extends Phaser.Scene {
       if(candidate&&Math.hypot(pointer.worldX-(this.field.x+candidate.x),pointer.worldY-(this.field.y+candidate.y))<=42){this.selectedLabRobotId=candidate.id;this.onLabRobotSelect?.(candidate.team,Number(candidate.id.split('-')[1]));this.pointerDrag={robot:candidate,container:this.robotGraphics.get(candidate.id)!};this.render();}
     });
     this.input.on('pointermove', (pointer:Phaser.Input.Pointer)=>{
-      const zoneDrag=this.zoneDrag;if(zoneDrag&&this.sim.state.status==='ready'){const r=zoneDrag.robot;const z=r.defensiveZone!;const cx=zoneDrag.resize?((z.left+z.right)/2):pointer.worldX-this.field.x-zoneDrag.offsetX;const cy=zoneDrag.resize?((z.top+z.bottom)/2):pointer.worldY-this.field.y-zoneDrag.offsetY;const width=zoneDrag.resize?Math.max(140,Math.abs(pointer.worldX-(this.field.x+(z.left+z.right)/2))*2):z.right-z.left;const height=zoneDrag.resize?Math.max(140,Math.abs(pointer.worldY-(this.field.y+(z.top+z.bottom)/2))*2):z.bottom-z.top;this.sim.setSweeperZone(r.id,{left:cx-width/2,top:cy-height/2,right:cx+width/2,bottom:cy+height/2});this.render();return;}
+      const zoneDrag=this.zoneDrag;if(zoneDrag&&this.sim.state.status==='ready'){const r=zoneDrag.robot;const z=r.defensiveZone!;const cx=zoneDrag.resize?((z.left+z.right)/2):pointer.worldX-this.field.x-zoneDrag.offsetX;const cy=zoneDrag.resize?((z.top+z.bottom)/2):pointer.worldY-this.field.y-zoneDrag.offsetY;const width=zoneDrag.resize?Math.max(140,Math.abs(pointer.worldX-(this.field.x+(z.left+z.right)/2))*2):z.right-z.left;const height=zoneDrag.resize?Math.max(140,Math.abs(pointer.worldY-(this.field.y+(z.top+z.bottom)/2))*2):z.bottom-z.top;this.setLabSweeperZone(r.id,{left:cx-width/2,top:cy-height/2,right:cx+width/2,bottom:cy+height/2});this.render();return;}
       const active=this.pointerDrag;if(!active||this.sim.state.status!=='ready')return;
       const r=active.robot;const x=this.clamp(pointer.worldX,this.field.x+28,this.field.x+this.field.w-28);const y=this.clamp(pointer.worldY,this.field.y+28,this.field.y+this.field.h-28);
       active.container.setPosition(x,y);r.x=x-this.field.x;r.y=y-this.field.y;r.homeX=r.x;r.homeY=r.y;r.moveTargetX=r.x;r.moveTargetY=r.y;if(r.archetype==='sweeper')this.syncSweeperZoneToRobot(r);
@@ -88,7 +89,7 @@ export class GameScene extends Phaser.Scene {
     this.sim=new MatchSimulation(this.seedValue,{blue,orange:opponentEnabled?orange:[]},{seedEnabled:this.seedEnabled});
     this.labVisibleIds=new Set([...((blueRoster??[]).map((_,index)=>`blue-${index}`)),...((opponentEnabled?orangeRoster??[]:[]).map((_,index)=>`orange-${index}`))]);
     const used:Array<{x:number;y:number}>=[]; const resolvePlacement=(requested:{x:number;y:number})=>{const base={x:this.clamp(requested.x,28,this.field.w-28),y:this.clamp(requested.y,28,this.field.h-28)};for(let radius=0;radius<=360;radius+=42){const samples=radius===0?1:Math.max(8,Math.ceil(radius/24));for(let sample=0;sample<samples;sample++){const angle=sample/samples*Math.PI*2;const candidate={x:this.clamp(base.x+Math.cos(angle)*radius,28,this.field.w-28),y:this.clamp(base.y+Math.sin(angle)*radius,28,this.field.h-28)};if(used.every(point=>Math.hypot(point.x-candidate.x,point.y-candidate.y)>=52)){used.push(candidate);return candidate;}}}used.push(base);return base;};
-    for(const [team,placements] of [['blue',bluePlacement] as const,['orange',orangePlacement] as const])placements.forEach((placement,index)=>{const robot=this.sim.state.robots.find(candidate=>candidate.id===`${team}-${index}`);if(robot){const resolved=resolvePlacement(placement);robot.x=resolved.x;robot.y=resolved.y;robot.homeX=resolved.x;robot.homeY=resolved.y;robot.moveTargetX=resolved.x;robot.moveTargetY=resolved.y;if(robot.archetype==='sweeper')this.sim.setSweeperZone(robot.id,{left:resolved.x-95,top:resolved.y-95,right:resolved.x+95,bottom:resolved.y+95});}});
+    for(const [team,placements] of [['blue',bluePlacement] as const,['orange',orangePlacement] as const])placements.forEach((placement,index)=>{const robot=this.sim.state.robots.find(candidate=>candidate.id===`${team}-${index}`);if(robot){const resolved=resolvePlacement(placement);robot.x=resolved.x;robot.y=resolved.y;robot.homeX=resolved.x;robot.homeY=resolved.y;robot.moveTargetX=resolved.x;robot.moveTargetY=resolved.y;if(robot.archetype==='sweeper'){const saved=this.labZoneOverrides.get(robot.id);this.setLabSweeperZone(robot.id,saved??{left:resolved.x-95,top:resolved.y-95,right:resolved.x+95,bottom:resolved.y+95});}}});
     this.applyLabBody(); this.sim.setKickDebugLine(this.debugEnabled);
     for(const c of Array.from(this.robotGraphics.values()))c.destroy(); this.robotGraphics.clear(); for(const r of this.sim.state.robots)this.createRobot(r); this.render();
   }
@@ -153,7 +154,8 @@ export class GameScene extends Phaser.Scene {
     c.on('dragend',(pointer:Phaser.Input.Pointer)=>{if(this.sim.state.status!=='ready')return;if(this.labMode){const inside=pointer.x>=this.field.x&&pointer.x<=this.field.x+this.field.w&&pointer.y>=this.field.y&&pointer.y<=this.field.y+this.field.h;if(inside){r.x=this.clamp(pointer.x-this.field.x,28,this.field.w-28);r.y=this.clamp(pointer.y-this.field.y,28,this.field.h-28);r.homeX=r.x;r.homeY=r.y;r.moveTargetX=r.x;r.moveTargetY=r.y;c.setPosition(this.field.x+r.x,this.field.y+r.y);if(r.archetype==='sweeper')this.syncSweeperZoneToRobot(r);this.onLabRobotMove?.(r.team,Number(r.id.split('-')[1]),r.x,r.y);}else this.onLabRobotMove?.(r.team,Number(r.id.split('-')[1]),null,null);c.setAlpha(1);dragGhost?.destroy(true);dragGhost=undefined;this.render();return;}r.homeX=r.x;r.homeY=r.y;this.render();});
     this.robotGraphics.set(r.id,c);
   }
-  private syncSweeperZoneToRobot(r:Robot):void { const z=r.defensiveZone; if(!z)return; const width=z.right-z.left,height=z.bottom-z.top; this.sim.setSweeperZone(r.id,{left:r.x-width/2,top:r.y-height/2,right:r.x+width/2,bottom:r.y+height/2}); }
+  private setLabSweeperZone(robotId:string,zone:DefensiveZone):DefensiveZone { const applied=this.sim.setSweeperZone(robotId,zone); this.labZoneOverrides.set(robotId,applied); return applied; }
+  private syncSweeperZoneToRobot(r:Robot):void { const z=r.defensiveZone; if(!z)return; const width=z.right-z.left,height=z.bottom-z.top; this.setLabSweeperZone(r.id,{left:r.x-width/2,top:r.y-height/2,right:r.x+width/2,bottom:r.y+height/2}); }
   private clamp(value:number,min:number,max:number):number{return Math.max(min,Math.min(max,value));}
   private roleLabel(r:Robot):string { return r.archetype==='goalkeeper'?'골키퍼':r.archetype==='bulwark'||r.archetype==='sweeper'?'스위퍼':r.archetype==='striker'?'돌격대장':r.archetype==='scout'?'정찰봇':r.archetype==='dribbler'?'운반봇':'포격봇'; }
   private actionLabel(action:Robot['action']):string { return ({PRESS:'압박',COVER:'커버',CARRY:'운반',KICK:'킥',SHOOT:'강슛',RESET:'복귀'} as Record<Robot['action'],string>)[action]; }
