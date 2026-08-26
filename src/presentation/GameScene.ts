@@ -46,6 +46,11 @@ export class GameScene extends Phaser.Scene {
     this.ball=this.add.circle(this.field.x+270,this.field.y+this.field.h/2,10,0xf6f3dc).setDepth(30).setStrokeStyle(3,0xffd16b);
     this.scoreText=this.add.text(10,20,'점수 0 : 0',{fontFamily:'monospace',fontSize:'18px',color:'#e6f7f5',fontStyle:'bold'}); this.timeText=this.add.text(420,30,'01:30',{fontFamily:'monospace',fontSize:'22px',color:'#9ad4d3'}); this.statusText=this.add.text(430,62,'준비 · 시작',{fontFamily:'monospace',fontSize:'12px',color:'#72a9af'});
     for(const r of this.sim.state.robots) this.createRobot(r);
+    this.input.on('pointerdown', (pointer:Phaser.Input.Pointer)=>{
+      if(!this.labMode||this.sim.state.status!=='ready')return;
+      const candidate=this.sim.state.robots.filter(r=>this.labVisibleIds.has(r.id)).sort((a,b)=>Math.hypot(pointer.worldX-(this.field.x+a.x),pointer.worldY-(this.field.y+a.y))-Math.hypot(pointer.worldX-(this.field.x+b.x),pointer.worldY-(this.field.y+b.y)))[0];
+      if(candidate&&Math.hypot(pointer.worldX-(this.field.x+candidate.x),pointer.worldY-(this.field.y+candidate.y))<=42){this.selectedLabRobotId=candidate.id;this.onLabRobotSelect?.(candidate.team,Number(candidate.id.split('-')[1]));this.render();}
+    });
     this.onReady?.(this);
     this.onReady = undefined;
   }
@@ -80,6 +85,7 @@ export class GameScene extends Phaser.Scene {
   toggleDebug():boolean { this.debugEnabled=!this.debugEnabled; this.sim.setKickDebugLine(this.debugEnabled); this.render(); return this.debugEnabled; }
   inspect(){return this.sim.state.robots.map(robot=>robotDebug(robot));}
   getTelemetry(){return this.sim.getTelemetry();}
+  getLabSelectionMetrics(){return Array.from(this.robotGraphics.entries()).map(([id,c])=>{const visual=c.list[0] as Phaser.GameObjects.Container;const body=visual.list[1] as Phaser.GameObjects.Shape;const bb=body.getBounds();return {id,selected:this.selectedLabRobotId===id,body:{x:bb.centerX,y:bb.centerY},ringExpected:{x:c.x,y:c.y},container:{x:c.x,y:c.y}};});}
   getState(){return this.sim.state;}
   private createRobot(r:Robot):void {
     const color=r.team==='blue'?0x48d7e1:0xff9f43;
@@ -105,14 +111,16 @@ export class GameScene extends Phaser.Scene {
     }
     const labelY=r.archetype==='goalkeeper'?(r.team==='blue'?24:-50):(r.team==='blue'?27:-42);
     const label=this.add.text(0,labelY,`${this.roleLabel(r)}\n${this.actionLabel(r.action)}`,{fontFamily:'monospace',fontSize:'11px',color:'#d8f0ec',align:'center',fixedWidth:96}).setOrigin(0.5,0);
-    const selectionRing=this.add.graphics(); selectionRing.lineStyle(4,r.team==='blue'?0x9ffff7:0xffd27a,1); selectionRing.strokeCircle(0,0,29); selectionRing.setVisible(false);
+    const selectionRing=this.add.graphics(); selectionRing.setPosition(body.x,body.y); selectionRing.lineStyle(4,r.team==='blue'?0x9ffff7:0xffd27a,1); selectionRing.strokeCircle(0,0,29); selectionRing.setVisible(false);
     const visual=this.add.container(0,0,[accent,body,nose,selectionRing]);
     visual.setRotation(Math.atan2(r.facingY,r.facingX)+Math.PI/2);
     const c=this.add.container(this.field.x+r.x,this.field.y+r.y,[visual,label]);
     c.setSize(54,54).setInteractive(new Phaser.Geom.Circle(0,0,32),Phaser.Geom.Circle.Contains);
     c.setData('selectionRing',selectionRing);
     this.input.setDraggable(c);
-    c.on('pointerdown',()=>{if(this.labMode&&this.sim.state.status==='ready'){this.selectedLabRobotId=r.id;this.onLabRobotSelect?.(r.team,Number(r.id.split('-')[1]));this.render();}});
+    const selectRobot=()=>{if(!this.labMode||this.sim.state.status!=='ready')return;this.selectedLabRobotId=r.id;this.onLabRobotSelect?.(r.team,Number(r.id.split('-')[1]));this.render();};
+    c.on('pointerdown',selectRobot);
+    c.on('pointerup',selectRobot);
     let dragGhost:Phaser.GameObjects.Container|undefined;
     c.on('dragstart',()=>{if(!this.labMode||this.sim.state.status!=='ready')return;const ghostBody=this.add.graphics();ghostBody.fillStyle(r.team==='blue'?0x48d7e1:0xff9f43,.75);if(r.shape==='circle')ghostBody.fillCircle(0,0,23);else if(r.shape==='hex')ghostBody.fillPoints([new Phaser.Geom.Point(0,-24),new Phaser.Geom.Point(22,-12),new Phaser.Geom.Point(22,12),new Phaser.Geom.Point(0,24),new Phaser.Geom.Point(-22,12),new Phaser.Geom.Point(-22,-12)],true);else ghostBody.fillRoundedRect(-22,-22,44,44,6);const ghostRing=this.add.graphics();ghostRing.lineStyle(3,0xffffff,.75);ghostRing.strokeCircle(0,0,29);dragGhost=this.add.container(c.x,c.y,[ghostBody,ghostRing]).setAlpha(.82);c.setAlpha(.28);});
     c.on('drag',(_pointer:Phaser.Input.Pointer,dragX:number,dragY:number)=>{
