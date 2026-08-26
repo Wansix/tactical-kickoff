@@ -37,8 +37,33 @@ describe('physics-first simulation contract', () => {
     (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0;
     const goalkeeper=match.state.robots[0]; match.state.ball.x=410; match.state.ball.y=650; match.state.ball.vx=0; match.state.ball.vy=120;
     for(let tick=0;tick<45;tick++) match.tick(1/60);
-    expect(goalkeeper.y).toBeGreaterThan(800);
+    expect(goalkeeper.y).toBeGreaterThanOrEqual(750);
     expect(goalkeeper.x).toBeGreaterThan(300);
+  });
+
+  it('returns a goalkeeper to its fixed goal-line home regardless of placed y', () => {
+    const blueMatch=new MatchSimulation(907,{blue:['goalkeeper'],orange:[]}); blueMatch.start();
+    (blueMatch as any).kickoffTimer=0; (blueMatch as any).kickoffRaceTicks=0;
+    const blue=blueMatch.state.robots[0]; blue.x=270; blue.y=360; blue.homeY=360;
+    blueMatch.state.ball.x=270; blueMatch.state.ball.y=430; blueMatch.state.ball.vx=0; blueMatch.state.ball.vy=0;
+    for(let tick=0;tick<120;tick++) blueMatch.tick(1/60);
+    expect(blue.y).toBeGreaterThan(820);
+    const orangeMatch=new MatchSimulation(908,{blue:[],orange:['goalkeeper']}); orangeMatch.start();
+    (orangeMatch as any).kickoffTimer=0; (orangeMatch as any).kickoffRaceTicks=0;
+    const orange=orangeMatch.state.robots[0]; orange.x=270; orange.y=700; orange.homeY=700;
+    orangeMatch.state.ball.x=270; orangeMatch.state.ball.y=550; orangeMatch.state.ball.vx=0; orangeMatch.state.ball.vy=0;
+    for(let tick=0;tick<120;tick++) orangeMatch.tick(1/60);
+    expect(orange.y).toBeLessThan(280);
+  });
+
+  it('allows a bounded goalkeeper step-out only near an incoming goal threat', () => {
+    const match=new MatchSimulation(909,{blue:['goalkeeper'],orange:[]}); match.start();
+    (match as any).kickoffTimer=0; (match as any).kickoffRaceTicks=0;
+    const goalkeeper=match.state.robots[0]; match.state.ball.x=270; match.state.ball.y=820; match.state.ball.vx=0; match.state.ball.vy=180;
+    match.tick(1/60);
+    expect(goalkeeper.moveTargetY).toBeLessThan(840);
+    expect(goalkeeper.y).toBeGreaterThanOrEqual(750);
+    expect(goalkeeper.y).toBeLessThanOrEqual(840);
   });
 
   it('punches a threatening ball passing beside the goalkeeper', () => {

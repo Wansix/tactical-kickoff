@@ -212,7 +212,7 @@ export class MatchSimulation {
 
     this.decideAndMoveRobots(dt);
     this.resolveRobotRobotCollisions();
-    for(const robot of this.state.robots){const minX=robot.archetype==='goalkeeper'?GOAL_AREA.left+ROBOT_RADIUS:28;const maxX=robot.archetype==='goalkeeper'?GOAL_AREA.right-ROBOT_RADIUS:this.field.width-28;const minY=robot.archetype==='goalkeeper'?(robot.team==='blue'?robot.homeY-GOALKEEPER_STEP_OUT:robot.homeY):28;const maxY=robot.archetype==='goalkeeper'?(robot.team==='blue'?robot.homeY:robot.homeY+GOALKEEPER_STEP_OUT):this.field.height-28;robot.x=this.clamp(robot.x,minX,maxX);robot.y=this.clamp(robot.y,minY,maxY);}
+    for(const robot of this.state.robots){const minX=robot.archetype==='goalkeeper'?GOAL_AREA.left+ROBOT_RADIUS:28;const maxX=robot.archetype==='goalkeeper'?GOAL_AREA.right-ROBOT_RADIUS:this.field.width-28;const goalkeeperHomeY=robot.team==='blue'?this.field.height-GOALKEEPER_HOME_DEPTH:GOALKEEPER_HOME_DEPTH;const minY=robot.archetype==='goalkeeper'?(robot.team==='blue'?goalkeeperHomeY-GOALKEEPER_STEP_OUT:goalkeeperHomeY):28;const maxY=robot.archetype==='goalkeeper'?(robot.team==='blue'?goalkeeperHomeY:goalkeeperHomeY+GOALKEEPER_STEP_OUT):this.field.height-28;robot.x=this.clamp(robot.x,minX,maxX);robot.y=this.clamp(robot.y,minY,maxY); }
     this.resolveRobotBallCollisions();
     this.integrateBall(dt);
     this.resolveGoalOrWalls();
@@ -237,10 +237,12 @@ export class MatchSimulation {
       switch(robot.archetype){
         case 'goalkeeper': {
           const ownAreaNearBall=robot.team==='blue'?b.y>=this.field.height-GOAL_AREA.depth:b.y<=GOAL_AREA.depth;
-          const stepOut=ownAreaNearBall?Math.min(GOALKEEPER_STEP_OUT,Math.max(0,Math.abs(b.y-robot.homeY))):0;
-          const ballInOwnHalf=robot.team==='blue'?b.y>=centerY:b.y<=centerY;
+          const goalkeeperHomeY=robot.team==='blue'?this.field.height-GOALKEEPER_HOME_DEPTH:GOALKEEPER_HOME_DEPTH;
+          const ballMovingTowardOwnGoal=robot.team==='blue'?b.vy>35:b.vy<-35;
+          const nearPunchPosition=Math.hypot(b.x-robot.x,b.y-robot.y)<=GOALKEEPER_PUNCH_REACH+30;
+          const stepOut=ownAreaNearBall&&ballMovingTowardOwnGoal&&nearPunchPosition?Math.min(GOALKEEPER_STEP_OUT,Math.max(0,Math.abs(b.y-goalkeeperHomeY))):0;
           targetX=this.clamp(centerX+(b.x-centerX)*0.45,GOAL_AREA.left+ROBOT_RADIUS,GOAL_AREA.right-ROBOT_RADIUS);
-          targetY=ballInOwnHalf?robot.homeY:robot.homeY+(robot.team==='blue'?-stepOut:stepOut);
+          targetY=ownAreaNearBall?goalkeeperHomeY+(robot.team==='blue'?-stepOut:stepOut):goalkeeperHomeY;
           robot.target='GOAL_LINE';action='COVER';break;
         }
         case 'striker': {
@@ -384,8 +386,9 @@ export class MatchSimulation {
       if(robot.archetype==='goalkeeper'){
         if(Math.hypot(robot.x-targetX,robot.y-targetY)<16&&Math.hypot(robot.vx,robot.vy)<100){robot.x=targetX;robot.y=targetY;robot.vx=0;robot.vy=0;}
         robot.x=this.clamp(robot.x,GOAL_AREA.left+ROBOT_RADIUS,GOAL_AREA.right-ROBOT_RADIUS);
-        const stepOutMin=robot.team==='blue'?robot.homeY-GOALKEEPER_STEP_OUT:robot.homeY;
-        const stepOutMax=robot.team==='blue'?robot.homeY:robot.homeY+GOALKEEPER_STEP_OUT;
+        const goalkeeperHomeY=robot.team==='blue'?this.field.height-GOALKEEPER_HOME_DEPTH:GOALKEEPER_HOME_DEPTH;
+        const stepOutMin=robot.team==='blue'?goalkeeperHomeY-GOALKEEPER_STEP_OUT:goalkeeperHomeY;
+        const stepOutMax=robot.team==='blue'?goalkeeperHomeY:goalkeeperHomeY+GOALKEEPER_STEP_OUT;
         robot.y=this.clamp(robot.y,stepOutMin,stepOutMax);
         robot.moveTargetX=targetX;robot.moveTargetY=targetY;
       }

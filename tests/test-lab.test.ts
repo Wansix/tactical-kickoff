@@ -6,7 +6,7 @@ import { BODY_PROFILES, BRAIN_SHAPES, createLabComposition, APP_VERSION, type Bo
 type Brain='striker'|'sweeper'|'scout'|'dribbler'|'cannon'|'bulwark'|'goalkeeper';
 const brains:Brain[]=['striker','sweeper','scout','dribbler','cannon','bulwark','goalkeeper'];
   it('uses the explicit product version displayed beside Test Lab',()=>{
-    expect(APP_VERSION).toBe('0.26');
+    expect(APP_VERSION).toBe('0.27');
   });
   it('maps every selectable Brain to its visible robot shape',()=>{
     expect(BRAIN_SHAPES).toEqual({striker:'circle',sweeper:'square',scout:'diamond',dribbler:'circle',cannon:'hex',bulwark:'square',goalkeeper:'hex'});
