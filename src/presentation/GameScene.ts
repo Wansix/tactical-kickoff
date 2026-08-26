@@ -92,6 +92,7 @@ export class GameScene extends Phaser.Scene {
     const body = r.shape==='circle' ? this.add.circle(0,0,16,color)
       : r.shape==='square' ? this.add.rectangle(0,0,28,28,color)
       : r.shape==='diamond' ? this.add.polygon(0,0,[0,-18,18,0,0,18,-18,0],color)
+      : r.archetype==='goalkeeper' ? this.add.polygon(0,0,[15,0,30,9,30,27,15,36,0,27,0,9],color)
       : this.add.polygon(0,0,[0,-18,15,-9,15,9,0,18,-15,9,-15,-9],color);
     body.setStrokeStyle(3,0x16232f);
     const accent=this.add.graphics();
