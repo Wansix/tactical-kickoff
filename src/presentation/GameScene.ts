@@ -61,7 +61,7 @@ export class GameScene extends Phaser.Scene {
       const zoneDrag=this.zoneDrag;if(zoneDrag&&this.sim.state.status==='ready'){const r=zoneDrag.robot;const z=r.defensiveZone!;const cx=zoneDrag.resize?((z.left+z.right)/2):pointer.worldX-this.field.x-zoneDrag.offsetX;const cy=zoneDrag.resize?((z.top+z.bottom)/2):pointer.worldY-this.field.y-zoneDrag.offsetY;const width=zoneDrag.resize?Math.max(140,Math.abs(pointer.worldX-(this.field.x+(z.left+z.right)/2))*2):z.right-z.left;const height=zoneDrag.resize?Math.max(140,Math.abs(pointer.worldY-(this.field.y+(z.top+z.bottom)/2))*2):z.bottom-z.top;this.sim.setSweeperZone(r.id,{left:cx-width/2,top:cy-height/2,right:cx+width/2,bottom:cy+height/2});this.render();return;}
       const active=this.pointerDrag;if(!active||this.sim.state.status!=='ready')return;
       const r=active.robot;const x=this.clamp(pointer.worldX,this.field.x+28,this.field.x+this.field.w-28);const y=this.clamp(pointer.worldY,this.field.y+28,this.field.y+this.field.h-28);
-      active.container.setPosition(x,y);r.x=x-this.field.x;r.y=y-this.field.y;r.homeX=r.x;r.homeY=r.y;r.moveTargetX=r.x;r.moveTargetY=r.y;
+      active.container.setPosition(x,y);r.x=x-this.field.x;r.y=y-this.field.y;r.homeX=r.x;r.homeY=r.y;r.moveTargetX=r.x;r.moveTargetY=r.y;if(r.archetype==='sweeper')this.syncSweeperZoneToRobot(r);
     });
     this.input.on('pointerup', ()=>{
       if(this.zoneDrag){this.zoneDrag=undefined;this.render();return;}
@@ -148,11 +148,12 @@ export class GameScene extends Phaser.Scene {
       const maxY=r.team==='blue'?this.field.y+this.field.h-28:this.field.y+this.field.h/2-28;
       const x=this.clamp(dragX,this.field.x+28,this.field.x+this.field.w-28);
       const y=this.clamp(dragY,minY,maxY);
-      c.setPosition(x,y); r.x=x-this.field.x; r.y=y-this.field.y; r.homeX=r.x; r.homeY=r.y; r.moveTargetX=r.x; r.moveTargetY=r.y;
+      c.setPosition(x,y); r.x=x-this.field.x; r.y=y-this.field.y; r.homeX=r.x; r.homeY=r.y; r.moveTargetX=r.x; r.moveTargetY=r.y; if(r.archetype==='sweeper')this.syncSweeperZoneToRobot(r);
     });
-    c.on('dragend',(pointer:Phaser.Input.Pointer)=>{if(this.sim.state.status!=='ready')return;if(this.labMode){const inside=pointer.x>=this.field.x&&pointer.x<=this.field.x+this.field.w&&pointer.y>=this.field.y&&pointer.y<=this.field.y+this.field.h;if(inside){r.x=this.clamp(pointer.x-this.field.x,28,this.field.w-28);r.y=this.clamp(pointer.y-this.field.y,28,this.field.h-28);r.homeX=r.x;r.homeY=r.y;r.moveTargetX=r.x;r.moveTargetY=r.y;c.setPosition(this.field.x+r.x,this.field.y+r.y);this.onLabRobotMove?.(r.team,Number(r.id.split('-')[1]),r.x,r.y);}else this.onLabRobotMove?.(r.team,Number(r.id.split('-')[1]),null,null);c.setAlpha(1);dragGhost?.destroy(true);dragGhost=undefined;this.render();return;}r.homeX=r.x;r.homeY=r.y;this.render();});
+    c.on('dragend',(pointer:Phaser.Input.Pointer)=>{if(this.sim.state.status!=='ready')return;if(this.labMode){const inside=pointer.x>=this.field.x&&pointer.x<=this.field.x+this.field.w&&pointer.y>=this.field.y&&pointer.y<=this.field.y+this.field.h;if(inside){r.x=this.clamp(pointer.x-this.field.x,28,this.field.w-28);r.y=this.clamp(pointer.y-this.field.y,28,this.field.h-28);r.homeX=r.x;r.homeY=r.y;r.moveTargetX=r.x;r.moveTargetY=r.y;c.setPosition(this.field.x+r.x,this.field.y+r.y);if(r.archetype==='sweeper')this.syncSweeperZoneToRobot(r);this.onLabRobotMove?.(r.team,Number(r.id.split('-')[1]),r.x,r.y);}else this.onLabRobotMove?.(r.team,Number(r.id.split('-')[1]),null,null);c.setAlpha(1);dragGhost?.destroy(true);dragGhost=undefined;this.render();return;}r.homeX=r.x;r.homeY=r.y;this.render();});
     this.robotGraphics.set(r.id,c);
   }
+  private syncSweeperZoneToRobot(r:Robot):void { const z=r.defensiveZone; if(!z)return; const width=z.right-z.left,height=z.bottom-z.top; this.sim.setSweeperZone(r.id,{left:r.x-width/2,top:r.y-height/2,right:r.x+width/2,bottom:r.y+height/2}); }
   private clamp(value:number,min:number,max:number):number{return Math.max(min,Math.min(max,value));}
   private roleLabel(r:Robot):string { return r.archetype==='goalkeeper'?'골키퍼':r.archetype==='bulwark'||r.archetype==='sweeper'?'스위퍼':r.archetype==='striker'?'돌격대장':r.archetype==='scout'?'정찰봇':r.archetype==='dribbler'?'운반봇':'포격봇'; }
   private actionLabel(action:Robot['action']):string { return ({PRESS:'압박',COVER:'커버',CARRY:'운반',KICK:'킥',SHOOT:'강슛',RESET:'복귀'} as Record<Robot['action'],string>)[action]; }
