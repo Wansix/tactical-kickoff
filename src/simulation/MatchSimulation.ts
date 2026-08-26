@@ -175,7 +175,7 @@ export class MatchSimulation {
     if(!robot) throw new Error(`sweeper not found: ${robotId}`);
     const normalized={left:Math.min(zone.left,zone.right),top:Math.min(zone.top,zone.bottom),right:Math.max(zone.left,zone.right),bottom:Math.max(zone.top,zone.bottom)};
     const requestedWidth=Math.max(SWEEPER_ZONE_SIZE,normalized.right-normalized.left),requestedHeight=Math.max(SWEEPER_ZONE_SIZE,normalized.bottom-normalized.top);
-    const maxWidth=this.field.width-56;
+    const maxWidth=this.field.width;
     const ownTop=robot.team==='orange'?28:this.field.height/2;
     const ownBottom=robot.team==='orange'?this.field.height/2:this.field.height-28;
     const maxHeight=Math.max(SWEEPER_ZONE_SIZE,ownBottom-ownTop);
